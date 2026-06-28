@@ -97,7 +97,7 @@ async def run():
             return
             
         print("\n--- JS Execution Results ---")
-        print(r.js_execution_results)
+        print(r.js_execution_result)
             
         print("\n--- Python DOM Parsing ---")
         soup = BeautifulSoup(r.html, "html.parser")
