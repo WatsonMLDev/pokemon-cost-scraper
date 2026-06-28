@@ -276,7 +276,8 @@ async def scrape_card_data(url_path: str, card_name: str):
             // Wait for new rows to appear
             await new Promise(r => setTimeout(r, 1200));
 
-            const currentRows = table.querySelectorAll('tbody tr').length;
+            const rows = table.querySelectorAll('tbody tr');
+            const currentRows = rows.length;
             if (currentRows === prevRowCount) {
                 staleRounds++;
                 if (staleRounds >= 3) break;  // No new data after 3 tries
@@ -284,6 +285,21 @@ async def scrape_card_data(url_path: str, card_name: str):
                 staleRounds = 0;
             }
             prevRowCount = currentRows;
+
+            // Check if the oldest loaded sale is over a year old (365 days)
+            if (currentRows > 0) {
+                const lastRow = rows[currentRows - 1];
+                const dateCell = lastRow.querySelector('td, th');
+                if (dateCell) {
+                    const rowDate = new Date(dateCell.innerText.trim());
+                    if (!isNaN(rowDate.getTime())) {
+                        const diffDays = (new Date() - rowDate) / (1000 * 60 * 60 * 24);
+                        if (diffDays > 365) {
+                            break; // Stop loading, we have 1 year of history
+                        }
+                    }
+                }
+            }
         }
 
         // 4. Scroll modal back to top so full HTML is captured
