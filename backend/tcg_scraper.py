@@ -236,7 +236,7 @@ async def scrape_card_data(url_path: str, card_name: str):
     return new Promise(async (resolve) => {
         // 1. Wait for the modal activator button to appear
         let btn = null;
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 40; i++) {
             btn = document.querySelector('div.modal__activator');
             if (btn) break;
             await new Promise(r => setTimeout(r, 200));
@@ -246,36 +246,34 @@ async def scrape_card_data(url_path: str, card_name: str):
             btn.click();
 
             // 2. Wait for the table to appear with real data (not placeholder)
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < 50; i++) {
                 const table = document.querySelector('.latest-sales-table');
                 if (table && !table.innerText.includes('12/12/12') && !table.innerText.includes('$0.00')) break;
                 await new Promise(r => setTimeout(r, 200));
             }
 
-            // 3. Scroll the modal's scrollable container to trigger lazy-loaded rows
-            const scrollTargets = [
-                document.querySelector('.modal__content'),
-                document.querySelector('.latest-sales__table-wrapper'),
-                document.querySelector('.latest-sales-table'),
-                document.querySelector('[class*="modal"]'),
-            ];
-            const scroller = scrollTargets.find(el => el && el.scrollHeight > el.clientHeight);
-
-            if (scroller) {
-                // Scroll incrementally to trigger any virtual/lazy rows
-                for (let step = 0; step < 10; step++) {
-                    scroller.scrollTop += scroller.scrollHeight / 10;
-                    await new Promise(r => setTimeout(r, 150));
-                }
-                // Scroll back to top so we capture from the beginning
-                scroller.scrollTop = 0;
-                await new Promise(r => setTimeout(r, 200));
-            } else {
-                // Fallback: scroll the whole page in case modal is inline
+            // 3. Forcefully scroll down any element that might be the scroll container
+            const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
+            
+            for (let step = 0; step < 12; step++) {
+                scrollers.forEach(s => {
+                    if (s) s.scrollTop += 800;
+                });
                 window.scrollTo(0, document.body.scrollHeight);
-                await new Promise(r => setTimeout(r, 500));
-                window.scrollTo(0, 0);
+                // Also try scrolling the last row into view
+                const rows = document.querySelectorAll('.latest-sales-table tbody tr');
+                if (rows.length > 0) {
+                    rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+                await new Promise(r => setTimeout(r, 250));
             }
+
+            // Scroll back to top so we capture from the beginning
+            scrollers.forEach(s => {
+                if (s) s.scrollTop = 0;
+            });
+            window.scrollTo(0, 0);
+            await new Promise(r => setTimeout(r, 400));
 
             // 4. Wait for row count to stabilize (two consecutive equal counts)
             let prevCount = -1;
