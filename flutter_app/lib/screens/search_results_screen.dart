@@ -169,7 +169,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   ),
                 ),
               ],
-            ),
+        ],
+      ),
     );
   }
 }
