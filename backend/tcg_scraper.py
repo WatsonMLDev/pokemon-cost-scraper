@@ -82,26 +82,26 @@ def parse_sales_snapshot(html: str, cond_name: str) -> dict:
             cells = tr.find_all(["td", "th"])
             if len(cells) >= 4:
                 date = cells[0].get_text(strip=True)
-                    for cls in ["latest-sales-table__tbody__condition__custom-listing",
-                                "tcg-base-overlay", "tcg-tooltip__content"]:
-                        el = cells[1].find(class_=cls)
-                        if el: el.decompose()
-                    cond_type = cells[1].get_text(strip=True)
-                    cond_type = cond_type.replace("Reverse Holofoil", "Rev Holo")
-                    cond_type = cond_type.replace("Holofoil", "Holo")
-                    cond_type = cond_type.replace("Japanese", "JP")
-                    if len(cond_type) > 15: cond_type = cond_type[:12] + "..."
-                    qty_str = cells[2].get_text(strip=True)
-                    price = cells[3].get_text(strip=True)
-                    
-                    qty = f"Q{qty_str}" if qty_str.isdigit() else qty_str
-                    
-                    sales.append({
-                        "date": date,
-                        "type": cond_type,
-                        "qty": qty,
-                        "price": price
-                    })
+                for cls in ["latest-sales-table__tbody__condition__custom-listing",
+                            "tcg-base-overlay", "tcg-tooltip__content"]:
+                    el = cells[1].find(class_=cls)
+                    if el: el.decompose()
+                cond_type = cells[1].get_text(strip=True)
+                cond_type = cond_type.replace("Reverse Holofoil", "Rev Holo")
+                cond_type = cond_type.replace("Holofoil", "Holo")
+                cond_type = cond_type.replace("Japanese", "JP")
+                if len(cond_type) > 15: cond_type = cond_type[:12] + "..."
+                qty_str = cells[2].get_text(strip=True)
+                price = cells[3].get_text(strip=True)
+                
+                qty = f"Q{qty_str}" if qty_str.isdigit() else qty_str
+                
+                sales.append({
+                    "date": date,
+                    "type": cond_type,
+                    "qty": qty,
+                    "price": price
+                })
     logger.debug(f"Parsed {len(sales)} sales for condition: {cond_name}")
     return {
         "short": cond_short,
