@@ -128,13 +128,30 @@ async def run():
         tables = soup.find_all("table")
         
         print(f"Found {len(tables)} element(s) with tag 'table'")
+        max_table = None
+        max_rows = -1
+        
         for i, table in enumerate(tables):
             tbody = table.find("tbody")
             if tbody:
                 rows = tbody.find_all("tr")
                 print(f"  Table {i+1}: {len(rows)} rows (class: {table.get('class')})")
+                if len(rows) > max_rows:
+                    max_rows = len(rows)
+                    max_table = table
             else:
                 print(f"  Table {i+1}: No tbody found (class: {table.get('class')})")
+                
+        if max_table:
+            tbody = max_table.find("tbody")
+            first_row = tbody.find("tr")
+            if first_row:
+                print(f"\n--- First Row of Biggest Table ({max_rows} rows) ---")
+                print(first_row.prettify())
+                cells = first_row.find_all(["td", "th"])
+                print(f"Found {len(cells)} cells in the first row.")
+                for c in cells:
+                    print(f"Cell text: {c.get_text(strip=True)}")
                 
     finally:
         await close_crawler()
