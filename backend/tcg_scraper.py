@@ -25,6 +25,7 @@ browser_config = BrowserConfig(
     use_managed_browser=True,
     headless=True,
     browser_type="chromium",
+    extra_args=["--password-store=basic"]
 )
 
 GLOBAL_CRAWLER = AsyncWebCrawler(config=browser_config)

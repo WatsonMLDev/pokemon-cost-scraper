@@ -50,6 +50,7 @@ async def main():
         use_managed_browser=True,
         headless=False,  # Visible so you can interact
         browser_type="chromium",
+        extra_args=["--password-store=basic"]
     )
 
     crawler = AsyncWebCrawler(config=browser_config)
