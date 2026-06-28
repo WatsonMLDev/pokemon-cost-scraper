@@ -27,36 +27,44 @@ return new Promise(async (resolve) => {
         return;
     }
     
-    debugInfo.push("Modal activator found and clicked");
-    btn.click();
+    debugInfo.push("Modal activator found");
     
-    // 2. Wait for table
-    for (let i = 0; i < 50; i++) {
-        const table = document.querySelector('.latest-sales-table');
-        if (table && !table.innerText.includes('12/12/12') && !table.innerText.includes('$0.00')) break;
-        await new Promise(r => setTimeout(r, 200));
+    // Try multiple click strategies
+    btn.click();
+    btn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+    btn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+    btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    
+    if (btn.firstElementChild) {
+        btn.firstElementChild.click();
     }
     
+    // 2. Wait for modal to actually appear in the DOM
+    let modalAppeared = false;
+    for (let i = 0; i < 30; i++) {
+        if (document.querySelector('.modal__content')) {
+            modalAppeared = true;
+            break;
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+    debugInfo.push(`Modal appeared in DOM: ${modalAppeared}`);
+    
     // 3. Scroll
-    const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
     for (let step = 0; step < 12; step++) {
+        // Query inside the loop so we get newly added elements!
+        const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
         scrollers.forEach(s => {
             if (s) s.scrollTop += 800;
         });
         window.scrollTo(0, document.body.scrollHeight);
+        
         const rows = document.querySelectorAll('.latest-sales-table tbody tr');
         if (rows.length > 0) {
             rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
         await new Promise(r => setTimeout(r, 250));
     }
-    
-    // Scroll back to top
-    scrollers.forEach(s => {
-        if (s) s.scrollTop = 0;
-    });
-    window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 400));
     
     // 4. Wait for stabilize
     let prevCount = -1;
