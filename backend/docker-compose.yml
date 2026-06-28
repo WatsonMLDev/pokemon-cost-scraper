@@ -7,3 +7,4 @@ services:
       - .:/app/backend
     env_file:
       - .env
+    command: python backend/test.py

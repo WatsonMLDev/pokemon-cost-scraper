@@ -231,109 +231,132 @@ async def scrape_card_data(url_path: str, card_name: str):
         
     yield {"type": "status", "message": f"Found {len(conditions)} conditions..."}
 
+    # ── Single-pass: open modal once, load all sales, filter per-condition in Python ──
+
     JS_CLICK_MODAL = """
     return new Promise(async (resolve) => {
+        // 1. Find and click the modal activator button
         let btn = null;
         for (let i = 0; i < 40; i++) {
             btn = document.querySelector('div.modal__activator');
             if (btn) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        if (!btn) { resolve('no_modal_activator'); return; }
+
+        btn.click();
+
+        // 2. Wait for the sales table to appear inside the modal
+        let table = null;
+        for (let i = 0; i < 40; i++) {
+            table = document.querySelector('table.latest-sales-table');
+            if (table && table.querySelector('tbody tr')) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        if (!table) { resolve('no_sales_table'); return; }
+
+        // 3. Click "Load More Sales" button repeatedly
+        let prevRowCount = 0;
+        let staleRounds = 0;
+        for (let i = 0; i < 30; i++) {
+            const loadBtn = document.querySelector(
+                '.sales-history-snapshot__load-more__button, ' +
+                'button.sales-history-snapshot__load-more__button'
+            );
+            if (!loadBtn || loadBtn.disabled || loadBtn.offsetParent === null) {
+                // Button gone or hidden — we've loaded everything
+                break;
+            }
+
+            loadBtn.scrollIntoView({block: 'center'});
             await new Promise(r => setTimeout(r, 200));
+            loadBtn.click();
+
+            // Wait for new rows to appear
+            await new Promise(r => setTimeout(r, 1200));
+
+            const currentRows = table.querySelectorAll('tbody tr').length;
+            if (currentRows === prevRowCount) {
+                staleRounds++;
+                if (staleRounds >= 3) break;  // No new data after 3 tries
+            } else {
+                staleRounds = 0;
+            }
+            prevRowCount = currentRows;
         }
 
-        if (btn) {
-            btn.click();
-            btn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
-            btn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-            btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-            if (btn.firstElementChild) btn.firstElementChild.click();
-            
-            // Wait for modal and wait for sales to load
-            await new Promise(r => setTimeout(r, 2000));
-            
-            // Try to load more sales by clicking "Load More Sales" button
-            let maxRows = 0;
-            for (let i = 0; i < 25; i++) {
-                const loadMoreBtn = document.querySelector('.sales-history-snapshot__load-more__button');
-                if (loadMoreBtn && !loadMoreBtn.disabled) {
-                    loadMoreBtn.click();
-                } else {
-                    // Fallback to scrolling if button isn't found
-                    const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
-                    scrollers.forEach(s => {
-                        if (s) s.scrollTop += 800;
-                    });
-                    
-                    document.querySelectorAll('table').forEach(t => {
-                        const rows = t.querySelectorAll('tbody tr');
-                        if (rows.length > 0) {
-                            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-                        }
-                    });
-                }
-                
-                await new Promise(r => setTimeout(r, 800));
-                
-                // Track max rows across all tables to know if we are loading more
-                let currentMax = 0;
-                document.querySelectorAll('table').forEach(t => {
-                    const rowCount = t.querySelectorAll('tr').length;
-                    if (rowCount > currentMax) currentMax = rowCount;
-                });
-                maxRows = currentMax;
-            }
+        // 4. Scroll modal back to top so full HTML is captured
+        const modalContent = document.querySelector('.modal__content');
+        if (modalContent) modalContent.scrollTop = 0;
+        await new Promise(r => setTimeout(r, 300));
 
-            document.querySelectorAll('.modal__content, .modal__overlay, section').forEach(s => {
-                if (s) s.scrollTop = 0;
-            });
-            window.scrollTo(0, 0);
-            await new Promise(r => setTimeout(r, 400));
-
-            // 4. Wait for row count to stabilize (two consecutive equal counts)
-            let prevCount = -1;
-            for (let i = 0; i < 15; i++) {
-                let maxRows = 0;
-                document.querySelectorAll('table').forEach(t => {
-                    const rows = t.querySelectorAll('tbody tr');
-                    if (rows.length > maxRows) maxRows = rows.length;
-                });
-                if (maxRows > 5 && maxRows === prevCount) break;
-                prevCount = maxRows;
-                await new Promise(r => setTimeout(r, 300));
-            }
-        }
-
-        resolve();
+        const finalRows = table.querySelectorAll('tbody tr').length;
+        resolve('loaded_' + finalRows + '_rows');
     });
     """
 
-    async def fetch_condition(cond_name: str, stagger: float) -> dict:
-        if stagger > 0:
-            await asyncio.sleep(stagger)
-        encoded = cond_name.replace(" ", "+")
-        url = f"{base_url}?Language=English&Condition={encoded}&page=1"
-        logger.info(f"Scraping condition: '{cond_name}' for {card_name}...")
-        r = await GLOBAL_CRAWLER.arun(
-            url=url,
-            config=CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS,
-                js_code=[JS_CLICK_MODAL],
-                delay_before_return_html=1.5,
-            ),
-        )
-        if not r.success:
-            logger.error(f"Failed to scrape condition '{cond_name}' for {card_name}")
-            return {"short": cond_name, "long": cond_name.upper(), "sales": []}
-        
-        sales_data = parse_sales_snapshot(r.html, cond_name)
-        logger.info(f"Successfully scraped condition: '{cond_name}' (found {len(sales_data['sales'])} sales)")
-        return sales_data
+    # Do ONE crawl to get all sales data (the modal shows all conditions regardless of URL filter)
+    url = f"{base_url}?Language=English&page=1"
+    logger.info(f"Opening product page + sales modal for {card_name}...")
+    yield {"type": "status", "message": "Opening sales modal..."}
 
-    yield {"type": "status", "message": "Scraping prices..."}
-    
-    tasks = [fetch_condition(c, stagger=i * 0.4) for i, c in enumerate(conditions)]
-    condition_results = await asyncio.gather(*tasks)
+    r = await GLOBAL_CRAWLER.arun(
+        url=url,
+        config=CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            js_code=[JS_CLICK_MODAL],
+            delay_before_return_html=2.0,
+        ),
+    )
 
-    logger.info(f"Completed scraping all {len(conditions)} conditions for {card_name}.")
+    if not r.success:
+        logger.error(f"Failed to load sales modal for {card_name}")
+        yield {"type": "result", "data": {"name": card_name, "conditions": []}}
+        return
+
+    js_result = r.js_execution_result
+    logger.info(f"JS modal result for {card_name}: {js_result}")
+
+    # Parse ALL sales from the single page load
+    all_sales_data = parse_sales_snapshot(r.html, "ALL")
+    all_sales = all_sales_data["sales"]
+    logger.info(f"Extracted {len(all_sales)} total sales rows from modal for {card_name}")
+
+    if not all_sales:
+        logger.warning(f"No sales extracted for {card_name} — modal may not have loaded.")
+
+    # Build condition-to-abbreviation mapping
+    COND_MAP = {
+        "Near Mint":        "NM",
+        "Lightly Played":   "LP",
+        "Moderately Played":"MP",
+        "Heavily Played":   "HP",
+        "Damaged":          "DMG",
+    }
+
+    yield {"type": "status", "message": f"Filtering {len(all_sales)} sales across {len(conditions)} conditions..."}
+
+    condition_results = []
+    for cond_name in conditions:
+        short = COND_MAP.get(cond_name, cond_name)
+        cond_upper = cond_name.upper()
+
+        # Filter sales for this condition — match the abbreviated type column
+        filtered = []
+        for sale in all_sales:
+            sale_type_upper = sale["type"].upper()
+            # Match "NM Holo", "LP Holo", etc. — the type column starts with the abbreviation
+            if sale_type_upper.startswith(short):
+                filtered.append(sale)
+
+        logger.info(f"Condition '{cond_name}' ({short}): {len(filtered)} matching sales out of {len(all_sales)} total")
+        condition_results.append({
+            "short": short,
+            "long": cond_upper,
+            "sales": filtered,
+        })
+
+    logger.info(f"Completed scraping {card_name}: {len(all_sales)} total sales across {len(conditions)} conditions.")
     yield {
         "type": "result",
         "data": {

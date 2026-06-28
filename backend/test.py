@@ -1,156 +1,144 @@
 import asyncio
 import logging
-import os
 from bs4 import BeautifulSoup
-from backend.tcg_scraper import init_crawler, close_crawler, GLOBAL_CRAWLER, PROFILE_DIR
+from backend.tcg_scraper import (
+    init_crawler, close_crawler, GLOBAL_CRAWLER,
+    parse_sales_snapshot, parse_conditions,
+)
 from crawl4ai import CrawlerRunConfig, CacheMode
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-TEST_URL = "https://www.tcgplayer.com/product/85963/pokemon-legendary-treasures-radiant-collection-growlithe?Language=English&Condition=Lightly+Played&page=1"
+TEST_URL = "https://www.tcgplayer.com/product/85963/pokemon-legendary-treasures-radiant-collection-growlithe?Language=English&page=1"
 
-JS_DEBUG_MODAL = """
+# Same JS as the real scraper — tests the actual code path
+JS_CLICK_MODAL = """
 return new Promise(async (resolve) => {
-    let debugInfo = [];
-    
-    // 1. Wait for modal activator
     let btn = null;
     for (let i = 0; i < 40; i++) {
         btn = document.querySelector('div.modal__activator');
         if (btn) break;
-        await new Promise(r => setTimeout(r, 200));
-    }
-    
-    if (!btn) {
-        debugInfo.push("Modal activator not found");
-        resolve(debugInfo);
-        return;
-    }
-    
-    debugInfo.push("Modal activator found");
-    
-    // Try multiple click strategies
-    btn.click();
-    btn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
-    btn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-    btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
-    
-    if (btn.firstElementChild) {
-        btn.firstElementChild.click();
-    }
-    
-    // 2. Wait for modal to actually appear in the DOM
-    let modalAppeared = false;
-    let modalEl = null;
-    for (let i = 0; i < 30; i++) {
-        modalEl = document.querySelector('.modal__content');
-        if (modalEl) {
-            modalAppeared = true;
-            break;
-        }
-        await new Promise(r => setTimeout(r, 200));
-    }
-    debugInfo.push(`Modal appeared in DOM: ${modalAppeared}`);
-    
-    // Check what is inside the modal!
-    if (modalEl) {
-        // give it a moment to load network data
-        await new Promise(r => setTimeout(r, 1500));
-        debugInfo.push(`Modal HTML preview: ${modalEl.innerHTML.substring(0, 500)}`);
-        
-        // Let's also check if there are ANY tables inside it
-        const innerTables = modalEl.querySelectorAll('table');
-        debugInfo.push(`Tables inside modal: ${innerTables.length}`);
-    }
-    
-    // 3. Scroll
-    for (let step = 0; step < 12; step++) {
-        // Query inside the loop so we get newly added elements!
-        const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
-        scrollers.forEach(s => {
-            if (s) s.scrollTop += 800;
-        });
-        window.scrollTo(0, document.body.scrollHeight);
-        
-        const tables = modalEl ? modalEl.querySelectorAll('table') : document.querySelectorAll('table');
-        tables.forEach(t => {
-            const rows = t.querySelectorAll('tbody tr');
-            if (rows.length > 0) {
-                rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }
-        });
         await new Promise(r => setTimeout(r, 250));
     }
-    
-    // 4. Wait for stabilize
-    let prevCount = -1;
-    for (let i = 0; i < 15; i++) {
-        let maxRows = 0;
-        document.querySelectorAll('table').forEach(t => {
-            const rows = t.querySelectorAll('tbody tr');
-            if (rows.length > maxRows) maxRows = rows.length;
-        });
-        if (maxRows > 5 && maxRows === prevCount) break;
-        prevCount = maxRows;
-        await new Promise(r => setTimeout(r, 300));
+    if (!btn) { resolve('no_modal_activator'); return; }
+
+    btn.click();
+
+    let table = null;
+    for (let i = 0; i < 40; i++) {
+        table = document.querySelector('table.latest-sales-table');
+        if (table && table.querySelector('tbody tr')) break;
+        await new Promise(r => setTimeout(r, 250));
     }
-    
-    debugInfo.push(`Final maxRows stabilized at: ${prevCount}`);
-    resolve(debugInfo);
+    if (!table) { resolve('no_sales_table'); return; }
+
+    let prevRowCount = 0;
+    let staleRounds = 0;
+    for (let i = 0; i < 30; i++) {
+        const loadBtn = document.querySelector(
+            '.sales-history-snapshot__load-more__button, ' +
+            'button.sales-history-snapshot__load-more__button'
+        );
+        if (!loadBtn || loadBtn.disabled || loadBtn.offsetParent === null) break;
+
+        loadBtn.scrollIntoView({block: 'center'});
+        await new Promise(r => setTimeout(r, 200));
+        loadBtn.click();
+        await new Promise(r => setTimeout(r, 1200));
+
+        const currentRows = table.querySelectorAll('tbody tr').length;
+        if (currentRows === prevRowCount) {
+            staleRounds++;
+            if (staleRounds >= 3) break;
+        } else {
+            staleRounds = 0;
+        }
+        prevRowCount = currentRows;
+    }
+
+    const modalContent = document.querySelector('.modal__content');
+    if (modalContent) modalContent.scrollTop = 0;
+    await new Promise(r => setTimeout(r, 300));
+
+    const finalRows = table.querySelectorAll('tbody tr').length;
+    resolve('loaded_' + finalRows + '_rows');
 });
 """
+
 
 async def run():
     await init_crawler()
     try:
         print(f"\n{'='*60}")
-        print(f"  Debug Scraping URL: {TEST_URL}")
+        print(f"  Testing: {TEST_URL}")
         print(f"{'='*60}\n")
-        
+
         r = await GLOBAL_CRAWLER.arun(
             url=TEST_URL,
             config=CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
-                js_code=[JS_DEBUG_MODAL],
-                delay_before_return_html=1.5,
-            )
+                js_code=[JS_CLICK_MODAL],
+                delay_before_return_html=2.0,
+            ),
         )
-        
+
         if not r.success:
             print("❌ Crawl failed!")
             return
-            
-        print("\n--- JS Execution Results ---")
-        print(r.js_execution_result)
-            
-        print("\n--- Python DOM Parsing ---")
-        soup = BeautifulSoup(r.html, "html.parser")
-        tables = soup.find_all("table")
-        
-        print(f"Found {len(tables)} element(s) with tag 'table'")
-        import re
-        latest_sales_tag = soup.find(string=re.compile("Latest Sales", re.I))
-        if latest_sales_tag:
-            print("\n--- FOUND LATEST SALES TEXT ---")
-            parent = latest_sales_tag.parent
-            for _ in range(3): # Go up a few levels to get the container
-                if parent and parent.parent:
-                    parent = parent.parent
-            print(parent.prettify()[:2000] if parent else "No parent found")
-            
-            # Let's also check for any lists or tables inside it
-            if parent:
-                tables = parent.find_all("table")
-                print(f"Tables inside Latest Sales container: {len(tables)}")
-                uls = parent.find_all("ul")
-                print(f"Lists (ul) inside Latest Sales container: {len(uls)}")
-                divs = parent.find_all("div", class_=lambda c: c and "row" in c.lower())
-                print(f"Div rows inside Latest Sales container: {len(divs)}")
+
+        print(f"✅ Crawl succeeded")
+        print(f"   JS result: {r.js_execution_result}")
+        print(f"   HTML length: {len(r.html)} chars")
+
+        # Parse conditions from the page
+        conditions = parse_conditions(r.html)
+        print(f"\n📋 Conditions found: {conditions or ['(none — will default to Near Mint)']}")
+
+        # Parse all sales
+        all_data = parse_sales_snapshot(r.html, "ALL")
+        sales = all_data["sales"]
+        print(f"\n📊 Total sales rows parsed: {len(sales)}")
+
+        if sales:
+            # Show first 5 and last 5
+            print("\n--- First 5 sales ---")
+            for s in sales[:5]:
+                print(f"  {s['date']:>10}  {s['type']:<15}  {s['qty']:<4}  {s['price']}")
+
+            if len(sales) > 10:
+                print(f"  ... ({len(sales) - 10} more rows) ...")
+
+            if len(sales) > 5:
+                print("\n--- Last 5 sales ---")
+                for s in sales[-5:]:
+                    print(f"  {s['date']:>10}  {s['type']:<15}  {s['qty']:<4}  {s['price']}")
+
+            # Breakdown by condition
+            print("\n--- Sales by Condition ---")
+            cond_counts = {}
+            for s in sales:
+                c = s["type"].split()[0] if s["type"] else "?"
+                cond_counts[c] = cond_counts.get(c, 0) + 1
+            for c, n in sorted(cond_counts.items(), key=lambda x: -x[1]):
+                print(f"  {c:<6}: {n} sales")
         else:
-            print("\n--- LATEST SALES TEXT NOT FOUND IN HTML ---")
-            
+            print("\n⚠️  No sales data found! The modal may not have opened.")
+            # Debug: check what tables exist
+            soup = BeautifulSoup(r.html, "html.parser")
+            tables = soup.find_all("table")
+            print(f"  Tables in HTML: {len(tables)}")
+            for i, t in enumerate(tables):
+                cls = t.get("class", [])
+                rows = len(t.find_all("tr"))
+                print(f"    Table {i}: class={cls}, rows={rows}")
+
+        print(f"\n{'='*60}")
+        print(f"  TEST COMPLETE")
+        print(f"{'='*60}")
+
     finally:
         await close_crawler()
+
 
 if __name__ == "__main__":
     asyncio.run(run())
