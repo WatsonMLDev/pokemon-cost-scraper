@@ -1,0 +1,35 @@
+[project]
+name = "pokemon-cost-scraper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "crawl4ai>=0.9.0",
+    "patchright>=1.60.1",
+    "google-genai>=1.6.0",
+    "python-dotenv",
+    "brilliant-sdk",
+    "halo-emulator",
+    "fastapi>=0.138.1",
+    "uvicorn>=0.49.0",
+    "python-multipart>=0.0.32",
+    "httpx>=0.28.1",
+    "torch>=2.12.1",
+    "transformers>=5.12.1",
+    "torchvision>=0.27.1",
+    "accelerate>=1.14.0",
+    "easyocr>=1.7.2",
+    "pytesseract>=0.3.13",
+    "opencv-python>=4.13.0.92",
+]
+
+[tool.uv.sources]
+brilliant-sdk = { path = "brilliant_sdk/python/packages/brilliant_sdk", editable = true }
+brilliant-ble = { path = "brilliant_sdk/python/packages/brilliant_ble", editable = true }
+brilliant-msg = { path = "brilliant_sdk/python/packages/brilliant_msg", editable = true }
+halo-emulator = { path = "brilliant_sdk/python/packages/halo_emulator", editable = true }
+
+
+
