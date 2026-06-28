@@ -66,16 +66,19 @@ return new Promise(async (resolve) => {
     // 3. Scroll
     for (let step = 0; step < 12; step++) {
         // Query inside the loop so we get newly added elements!
-        const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
+        const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
         scrollers.forEach(s => {
             if (s) s.scrollTop += 800;
         });
         window.scrollTo(0, document.body.scrollHeight);
         
-        const rows = document.querySelectorAll('.latest-sales-table tbody tr');
-        if (rows.length > 0) {
-            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
+        const tables = modalEl ? modalEl.querySelectorAll('table') : document.querySelectorAll('table');
+        tables.forEach(t => {
+            const rows = t.querySelectorAll('tbody tr');
+            if (rows.length > 0) {
+                rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+        });
         await new Promise(r => setTimeout(r, 250));
     }
     
@@ -83,7 +86,7 @@ return new Promise(async (resolve) => {
     let prevCount = -1;
     for (let i = 0; i < 15; i++) {
         let maxRows = 0;
-        document.querySelectorAll('.latest-sales-table').forEach(t => {
+        document.querySelectorAll('table').forEach(t => {
             const rows = t.querySelectorAll('tbody tr');
             if (rows.length > maxRows) maxRows = rows.length;
         });
@@ -122,16 +125,16 @@ async def run():
             
         print("\n--- Python DOM Parsing ---")
         soup = BeautifulSoup(r.html, "html.parser")
-        tables = soup.find_all(class_="latest-sales-table")
+        tables = soup.find_all("table")
         
-        print(f"Found {len(tables)} element(s) with class 'latest-sales-table'")
+        print(f"Found {len(tables)} element(s) with tag 'table'")
         for i, table in enumerate(tables):
             tbody = table.find("tbody")
             if tbody:
                 rows = tbody.find_all("tr")
-                print(f"  Table {i+1}: {len(rows)} rows")
+                print(f"  Table {i+1}: {len(rows)} rows (class: {table.get('class')})")
             else:
-                print(f"  Table {i+1}: No tbody found")
+                print(f"  Table {i+1}: No tbody found (class: {table.get('class')})")
                 
     finally:
         await close_crawler()

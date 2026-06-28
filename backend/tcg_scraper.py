@@ -75,7 +75,7 @@ def parse_sales_snapshot(html: str, cond_name: str) -> dict:
     elif "DAMAGED" in cond_upper: cond_short = "DMG"
 
     sales = []
-    tables = soup.find_all(class_="latest-sales-table")
+    tables = soup.find_all("table")
     table = None
     max_rows = -1
     for t in tables:
@@ -244,7 +244,6 @@ async def scrape_card_data(url_path: str, card_name: str):
 
     JS_CLICK_MODAL = """
     return new Promise(async (resolve) => {
-        // 1. Wait for the modal activator button to appear
         let btn = null;
         for (let i = 0; i < 40; i++) {
             btn = document.querySelector('div.modal__activator');
@@ -254,32 +253,33 @@ async def scrape_card_data(url_path: str, card_name: str):
 
         if (btn) {
             btn.click();
-
-            // 2. Wait for the table to appear with real data (not placeholder)
-            for (let i = 0; i < 50; i++) {
-                const table = document.querySelector('.latest-sales-table');
-                if (table && !table.innerText.includes('12/12/12') && !table.innerText.includes('$0.00')) break;
+            btn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+            btn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+            if (btn.firstElementChild) btn.firstElementChild.click();
+            
+            for (let i = 0; i < 30; i++) {
+                if (document.querySelector('.modal__content')) break;
                 await new Promise(r => setTimeout(r, 200));
             }
-
-            // 3. Forcefully scroll down any element that might be the scroll container
-            const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
             
             for (let step = 0; step < 12; step++) {
+                const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
                 scrollers.forEach(s => {
                     if (s) s.scrollTop += 800;
                 });
                 window.scrollTo(0, document.body.scrollHeight);
-                // Also try scrolling the last row into view
-                const rows = document.querySelectorAll('.latest-sales-table tbody tr');
-                if (rows.length > 0) {
-                    rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }
+                
+                document.querySelectorAll('table').forEach(t => {
+                    const rows = t.querySelectorAll('tbody tr');
+                    if (rows.length > 0) {
+                        rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
+                });
                 await new Promise(r => setTimeout(r, 250));
             }
 
-            // Scroll back to top so we capture from the beginning
-            scrollers.forEach(s => {
+            document.querySelectorAll('.modal__content, .modal__overlay, section').forEach(s => {
                 if (s) s.scrollTop = 0;
             });
             window.scrollTo(0, 0);
@@ -289,7 +289,7 @@ async def scrape_card_data(url_path: str, card_name: str):
             let prevCount = -1;
             for (let i = 0; i < 15; i++) {
                 let maxRows = 0;
-                document.querySelectorAll('.latest-sales-table').forEach(t => {
+                document.querySelectorAll('table').forEach(t => {
                     const rows = t.querySelectorAll('tbody tr');
                     if (rows.length > maxRows) maxRows = rows.length;
                 });
