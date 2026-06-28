@@ -1,48 +1,119 @@
-"""
-Quick test: verifies the sales modal scraper returns all rows for a card.
-Run from the project root:
-    python -m backend.test_sales_scrape
-"""
 import asyncio
 import logging
 import os
-from backend.tcg_scraper import init_crawler, close_crawler, scrape_card_data, PROFILE_DIR
+from bs4 import BeautifulSoup
+from backend.tcg_scraper import init_crawler, close_crawler, GLOBAL_CRAWLER, PROFILE_DIR
+from crawl4ai import CrawlerRunConfig, CacheMode
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-# ── Confirm browser profile ────────────────────────────────────────────────────
-print(f"\n🗂  Browser profile: {PROFILE_DIR}")
-cookies_path = os.path.join(PROFILE_DIR, "Default", "Cookies")
-if os.path.exists(cookies_path):
-    print("✅  Cookies found — session will be authenticated")
-else:
-    print("⚠️   No cookies found — run login_helper.py first!")
-# ──────────────────────────────────────────────────────────────────────────────
-TEST_URL  = "/product/85963/pokemon-legendary-treasures-radiant-collection-growlithe"
-TEST_NAME = "Growlithe"
-# ──────────────────────────────────────────────────────────────────────────────
+
+TEST_URL = "https://www.tcgplayer.com/product/85963/pokemon-legendary-treasures-radiant-collection-growlithe?Language=English&Condition=Lightly+Played&page=1"
+
+JS_DEBUG_MODAL = """
+return new Promise(async (resolve) => {
+    let debugInfo = [];
+    
+    // 1. Wait for modal activator
+    let btn = null;
+    for (let i = 0; i < 40; i++) {
+        btn = document.querySelector('div.modal__activator');
+        if (btn) break;
+        await new Promise(r => setTimeout(r, 200));
+    }
+    
+    if (!btn) {
+        debugInfo.push("Modal activator not found");
+        resolve(debugInfo);
+        return;
+    }
+    
+    debugInfo.push("Modal activator found and clicked");
+    btn.click();
+    
+    // 2. Wait for table
+    for (let i = 0; i < 50; i++) {
+        const table = document.querySelector('.latest-sales-table');
+        if (table && !table.innerText.includes('12/12/12') && !table.innerText.includes('$0.00')) break;
+        await new Promise(r => setTimeout(r, 200));
+    }
+    
+    // 3. Scroll
+    const scrollers = document.querySelectorAll('.modal__content, .latest-sales__table-wrapper, .latest-sales-table, [class*="modal"]');
+    for (let step = 0; step < 12; step++) {
+        scrollers.forEach(s => {
+            if (s) s.scrollTop += 800;
+        });
+        window.scrollTo(0, document.body.scrollHeight);
+        const rows = document.querySelectorAll('.latest-sales-table tbody tr');
+        if (rows.length > 0) {
+            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+        await new Promise(r => setTimeout(r, 250));
+    }
+    
+    // Scroll back to top
+    scrollers.forEach(s => {
+        if (s) s.scrollTop = 0;
+    });
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 400));
+    
+    // 4. Wait for stabilize
+    let prevCount = -1;
+    for (let i = 0; i < 15; i++) {
+        let maxRows = 0;
+        document.querySelectorAll('.latest-sales-table').forEach(t => {
+            const rows = t.querySelectorAll('tbody tr');
+            if (rows.length > maxRows) maxRows = rows.length;
+        });
+        if (maxRows > 5 && maxRows === prevCount) break;
+        prevCount = maxRows;
+        await new Promise(r => setTimeout(r, 300));
+    }
+    
+    debugInfo.push(`Final maxRows stabilized at: ${prevCount}`);
+    resolve(debugInfo);
+});
+"""
+
 async def run():
     await init_crawler()
     try:
         print(f"\n{'='*60}")
-        print(f"  Scraping: {TEST_NAME}")
-        print(f"  URL:      {TEST_URL}")
+        print(f"  Debug Scraping URL: {TEST_URL}")
         print(f"{'='*60}\n")
-        async for chunk in scrape_card_data(TEST_URL, TEST_NAME):
-            if chunk["type"] == "status":
-                print(f"[STATUS] {chunk['message']}")
-            elif chunk["type"] == "result":
-                data = chunk["data"]
-                conditions = data.get("conditions", [])
-                print(f"\n✅  Got {len(conditions)} condition(s)\n")
-                for cond in conditions:
-                    sales = cond.get("sales", [])
-                    print(f"  [{cond['short']}] {cond['long']}  →  {len(sales)} sale(s)")
-                    for s in sales[:5]:   # preview first 5
-                        print(f"       {s['date']:10s}  {s['type']:20s}  {s['qty']:4s}  {s['price']}")
-                    if len(sales) > 5:
-                        print(f"       ... and {len(sales) - 5} more")
-            elif chunk["type"] == "error":
-                print(f"[ERROR] {chunk['message']}")
+        
+        r = await GLOBAL_CRAWLER.arun(
+            url=TEST_URL,
+            config=CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                js_code=[JS_DEBUG_MODAL],
+                delay_before_return_html=1.5,
+            )
+        )
+        
+        if not r.success:
+            print("❌ Crawl failed!")
+            return
+            
+        print("\n--- JS Execution Results ---")
+        print(r.js_execution_results)
+            
+        print("\n--- Python DOM Parsing ---")
+        soup = BeautifulSoup(r.html, "html.parser")
+        tables = soup.find_all(class_="latest-sales-table")
+        
+        print(f"Found {len(tables)} element(s) with class 'latest-sales-table'")
+        for i, table in enumerate(tables):
+            tbody = table.find("tbody")
+            if tbody:
+                rows = tbody.find_all("tr")
+                print(f"  Table {i+1}: {len(rows)} rows")
+            else:
+                print(f"  Table {i+1}: No tbody found")
+                
     finally:
         await close_crawler()
+
 if __name__ == "__main__":
     asyncio.run(run())
