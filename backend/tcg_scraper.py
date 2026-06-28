@@ -247,25 +247,39 @@ async def scrape_card_data(url_path: str, card_name: str):
             btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
             if (btn.firstElementChild) btn.firstElementChild.click();
             
-            for (let i = 0; i < 30; i++) {
-                if (document.querySelector('.modal__content')) break;
-                await new Promise(r => setTimeout(r, 200));
-            }
+            // Wait for modal and wait for sales to load
+            await new Promise(r => setTimeout(r, 2000));
             
-            for (let step = 0; step < 12; step++) {
-                const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
-                scrollers.forEach(s => {
-                    if (s) s.scrollTop += 800;
-                });
-                window.scrollTo(0, document.body.scrollHeight);
+            // Try to load more sales by clicking "Load More Sales" button
+            let maxRows = 0;
+            for (let i = 0; i < 25; i++) {
+                const loadMoreBtn = document.querySelector('.sales-history-snapshot__load-more__button');
+                if (loadMoreBtn && !loadMoreBtn.disabled) {
+                    loadMoreBtn.click();
+                } else {
+                    // Fallback to scrolling if button isn't found
+                    const scrollers = document.querySelectorAll('.modal__content, .modal__overlay, section');
+                    scrollers.forEach(s => {
+                        if (s) s.scrollTop += 800;
+                    });
+                    
+                    document.querySelectorAll('table').forEach(t => {
+                        const rows = t.querySelectorAll('tbody tr');
+                        if (rows.length > 0) {
+                            rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }
+                    });
+                }
                 
+                await new Promise(r => setTimeout(r, 800));
+                
+                // Track max rows across all tables to know if we are loading more
+                let currentMax = 0;
                 document.querySelectorAll('table').forEach(t => {
-                    const rows = t.querySelectorAll('tbody tr');
-                    if (rows.length > 0) {
-                        rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    }
+                    const rowCount = t.querySelectorAll('tr').length;
+                    if (rowCount > currentMax) currentMax = rowCount;
                 });
-                await new Promise(r => setTimeout(r, 250));
+                maxRows = currentMax;
             }
 
             document.querySelectorAll('.modal__content, .modal__overlay, section').forEach(s => {
