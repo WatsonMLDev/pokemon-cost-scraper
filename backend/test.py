@@ -128,24 +128,27 @@ async def run():
         tables = soup.find_all("table")
         
         print(f"Found {len(tables)} element(s) with tag 'table'")
-        
-        import os
-        base_dir = os.path.dirname(__file__)
-        
-        page_path = os.path.join(base_dir, "debug_page.html")
-        with open(page_path, "w") as f:
-            f.write(r.html)
-        print(f"\nSaved full page HTML to {page_path}")
-        
-        # Check what the JS sent back for modal HTML
-        if len(r.js_execution_result['results']) > 0:
-            for item in r.js_execution_result['results'][0]:
-                if item.startswith('Modal HTML preview:'):
-                    modal_path = os.path.join(base_dir, "debug_modal.html")
-                    with open(modal_path, "w") as f:
-                        f.write(item[19:])
-                    print(f"Saved modal HTML to {modal_path}")
-
+        import re
+        latest_sales_tag = soup.find(string=re.compile("Latest Sales", re.I))
+        if latest_sales_tag:
+            print("\n--- FOUND LATEST SALES TEXT ---")
+            parent = latest_sales_tag.parent
+            for _ in range(3): # Go up a few levels to get the container
+                if parent and parent.parent:
+                    parent = parent.parent
+            print(parent.prettify()[:2000] if parent else "No parent found")
+            
+            # Let's also check for any lists or tables inside it
+            if parent:
+                tables = parent.find_all("table")
+                print(f"Tables inside Latest Sales container: {len(tables)}")
+                uls = parent.find_all("ul")
+                print(f"Lists (ul) inside Latest Sales container: {len(uls)}")
+                divs = parent.find_all("div", class_=lambda c: c and "row" in c.lower())
+                print(f"Div rows inside Latest Sales container: {len(divs)}")
+        else:
+            print("\n--- LATEST SALES TEXT NOT FOUND IN HTML ---")
+            
     finally:
         await close_crawler()
 
