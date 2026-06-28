@@ -41,14 +41,27 @@ return new Promise(async (resolve) => {
     
     // 2. Wait for modal to actually appear in the DOM
     let modalAppeared = false;
+    let modalEl = null;
     for (let i = 0; i < 30; i++) {
-        if (document.querySelector('.modal__content')) {
+        modalEl = document.querySelector('.modal__content');
+        if (modalEl) {
             modalAppeared = true;
             break;
         }
         await new Promise(r => setTimeout(r, 200));
     }
     debugInfo.push(`Modal appeared in DOM: ${modalAppeared}`);
+    
+    // Check what is inside the modal!
+    if (modalEl) {
+        // give it a moment to load network data
+        await new Promise(r => setTimeout(r, 1500));
+        debugInfo.push(`Modal HTML preview: ${modalEl.innerHTML.substring(0, 500)}`);
+        
+        // Let's also check if there are ANY tables inside it
+        const innerTables = modalEl.querySelectorAll('table');
+        debugInfo.push(`Tables inside modal: ${innerTables.length}`);
+    }
     
     // 3. Scroll
     for (let step = 0; step < 12; step++) {
