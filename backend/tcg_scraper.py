@@ -234,20 +234,59 @@ async def scrape_card_data(url_path: str, card_name: str):
 
     JS_CLICK_MODAL = """
     return new Promise(async (resolve) => {
+        // 1. Wait for the modal activator button to appear
         let btn = null;
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 30; i++) {
             btn = document.querySelector('div.modal__activator');
             if (btn) break;
             await new Promise(r => setTimeout(r, 200));
         }
+
         if (btn) {
             btn.click();
-            for (let i = 0; i < 20; i++) {
+
+            // 2. Wait for the table to appear with real data (not placeholder)
+            for (let i = 0; i < 40; i++) {
                 const table = document.querySelector('.latest-sales-table');
                 if (table && !table.innerText.includes('12/12/12') && !table.innerText.includes('$0.00')) break;
                 await new Promise(r => setTimeout(r, 200));
             }
+
+            // 3. Scroll the modal's scrollable container to trigger lazy-loaded rows
+            const scrollTargets = [
+                document.querySelector('.modal__content'),
+                document.querySelector('.latest-sales__table-wrapper'),
+                document.querySelector('.latest-sales-table'),
+                document.querySelector('[class*="modal"]'),
+            ];
+            const scroller = scrollTargets.find(el => el && el.scrollHeight > el.clientHeight);
+
+            if (scroller) {
+                // Scroll incrementally to trigger any virtual/lazy rows
+                for (let step = 0; step < 10; step++) {
+                    scroller.scrollTop += scroller.scrollHeight / 10;
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                // Scroll back to top so we capture from the beginning
+                scroller.scrollTop = 0;
+                await new Promise(r => setTimeout(r, 200));
+            } else {
+                // Fallback: scroll the whole page in case modal is inline
+                window.scrollTo(0, document.body.scrollHeight);
+                await new Promise(r => setTimeout(r, 500));
+                window.scrollTo(0, 0);
+            }
+
+            // 4. Wait for row count to stabilize (two consecutive equal counts)
+            let prevCount = -1;
+            for (let i = 0; i < 15; i++) {
+                const rows = document.querySelectorAll('.latest-sales-table tbody tr');
+                if (rows.length > 0 && rows.length === prevCount) break;
+                prevCount = rows.length;
+                await new Promise(r => setTimeout(r, 300));
+            }
         }
+
         resolve();
     });
     """
@@ -263,7 +302,7 @@ async def scrape_card_data(url_path: str, card_name: str):
             config=CrawlerRunConfig(
                 cache_mode=CacheMode.BYPASS,
                 js_code=[JS_CLICK_MODAL],
-                delay_before_return_html=0.1,
+                delay_before_return_html=1.5,
             ),
         )
         if not r.success:
