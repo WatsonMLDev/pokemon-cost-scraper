@@ -259,7 +259,7 @@ async def scrape_card_data(url_path: str, card_name: str):
         // 3. Click "Load More Sales" button repeatedly
         let prevRowCount = 0;
         let staleRounds = 0;
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 3; i++) {
             const loadBtn = document.querySelector(
                 '.sales-history-snapshot__load-more__button, ' +
                 'button.sales-history-snapshot__load-more__button'
