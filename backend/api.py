@@ -37,6 +37,9 @@ class ScrapeRequest(BaseModel):
     url: str
     name: str
 
+class SearchTextRequest(BaseModel):
+    query: str
+
 @app.post("/api/v1/search_by_image")
 async def search_by_image(file: UploadFile = File(...), token: str = Depends(verify_token)):
     async def event_stream():
@@ -80,6 +83,32 @@ async def search_by_image(file: UploadFile = File(...), token: str = Depends(ver
             if os.path.exists(temp_file.name):
                 os.remove(temp_file.name)
                 
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+@app.post("/api/v1/search_by_text")
+async def search_by_text(req: SearchTextRequest, token: str = Depends(verify_token)):
+    async def event_stream():
+        logger.info(f"Received text search for query: {req.query}")
+        try:
+            # 2. Search TCGPlayer
+            logger.info(f"Searching TCGPlayer for query: {req.query}")
+            yield json.dumps({"type": "status", "message": f"Searching for: {req.query}"}) + "\n"
+            
+            results = await search_cards(req.query)
+            logger.info(f"Found {len(results)} results for query: {req.query}")
+            
+            yield json.dumps({
+                "type": "result",
+                "data": {
+                    "query": req.query,
+                    "search_items": results
+                }
+            }) + "\n"
+            
+        except Exception as e:
+            logger.error(f"Error in search_by_text stream: {e}")
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+            
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 @app.post("/api/v1/scrape_card")

@@ -2,12 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
+import 'processing_screen.dart';
 import 'scraping_screen.dart';
 
-class SearchResultsScreen extends StatelessWidget {
+class SearchResultsScreen extends StatefulWidget {
+  final String query;
   final List<dynamic> results;
 
-  const SearchResultsScreen({super.key, required this.results});
+  const SearchResultsScreen({
+    super.key,
+    required this.query,
+    required this.results,
+  });
+
+  @override
+  State<SearchResultsScreen> createState() => _SearchResultsScreenState();
+}
+
+class _SearchResultsScreenState extends State<SearchResultsScreen> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.query);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _submitSearch(String newQuery) {
+    if (newQuery.trim().isEmpty) return;
+    Navigator.pushReplacement(
+      context,
+      _haloPageRoute(
+        ProcessingScreen(textQuery: newQuery.trim()),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +55,7 @@ class SearchResultsScreen extends StatelessWidget {
               fontWeight: FontWeight.w600,
             )),
       ),
-      body: results.isEmpty
+      body: widget.results.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -36,10 +71,43 @@ class SearchResultsScreen extends StatelessWidget {
             )
           : Column(
               children: [
+                // ── Edit Search Bar ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Refine search...',
+                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                      filled: true,
+                      fillColor: HaloColors.card.withValues(alpha: 0.6),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: HaloColors.primary),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search, color: HaloColors.primary),
+                        onPressed: () => _submitSearch(_searchController.text),
+                      ),
+                    ),
+                    onSubmitted: _submitSearch,
+                  ),
+                ),
+                
                 // ── Result count badge ──
                 Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Row(
                     children: [
                       Container(
@@ -54,7 +122,7 @@ class SearchResultsScreen extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          '${results.length} FOUND',
+                          '${widget.results.length} FOUND',
                           style: GoogleFonts.rajdhani(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -78,9 +146,9 @@ class SearchResultsScreen extends StatelessWidget {
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 8),
-                    itemCount: results.length,
+                    itemCount: widget.results.length,
                     itemBuilder: (context, index) {
-                      final item = results[index];
+                      final item = widget.results[index];
                       return _SearchResultTile(
                         item: item,
                         index: index,

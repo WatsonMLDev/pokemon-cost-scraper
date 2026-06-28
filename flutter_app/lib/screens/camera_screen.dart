@@ -20,6 +20,7 @@ class _CameraScreenState extends State<CameraScreen>
     with SingleTickerProviderStateMixin {
   CameraController? _controller;
   late AnimationController _pulseController;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   void dispose() {
+    _searchController.dispose();
     _controller?.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -97,8 +99,11 @@ class _CameraScreenState extends State<CameraScreen>
         children: [
           // ── Camera Preview ──
           Positioned.fill(
-            child: ClipRRect(
-              child: CameraPreview(_controller!),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 1 / _controller!.value.aspectRatio,
+                child: CameraPreview(_controller!),
+              ),
             ),
           ),
 
@@ -112,21 +117,79 @@ class _CameraScreenState extends State<CameraScreen>
             child: ScanlineOverlay(opacity: 0.04),
           ),
 
-          // ── Top Gradient ──
+          // ── Top Gradient & Search Bar ──
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: 140,
+            height: 160,
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    HaloColors.background.withValues(alpha: 0.8),
+                    HaloColors.background.withValues(alpha: 0.95),
                     Colors.transparent,
                   ],
+                ),
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Manual Search...',
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                            filled: true,
+                            fillColor: HaloColors.card.withValues(alpha: 0.6),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: HaloColors.primary),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.search, color: HaloColors.primary),
+                              onPressed: () {
+                                if (_searchController.text.trim().isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    _haloPageRoute(
+                                      ProcessingScreen(textQuery: _searchController.text.trim()),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            if (value.trim().isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                _haloPageRoute(
+                                  ProcessingScreen(textQuery: value.trim()),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

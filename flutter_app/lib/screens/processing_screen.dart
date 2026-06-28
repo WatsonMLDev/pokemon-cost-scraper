@@ -13,9 +13,10 @@ import '../widgets/glassmorphic_card.dart';
 import 'search_results_screen.dart';
 
 class ProcessingScreen extends StatefulWidget {
-  final File imageFile;
+  final File? imageFile;
+  final String? textQuery;
 
-  const ProcessingScreen({super.key, required this.imageFile});
+  const ProcessingScreen({super.key, this.imageFile, this.textQuery});
 
   @override
   State<ProcessingScreen> createState() => _ProcessingScreenState();
@@ -55,13 +56,24 @@ class _ProcessingScreenState extends State<ProcessingScreen>
       final String baseUrl = dotenv.env['API_BASE_URL'] ?? "http://127.0.0.1:8000";
       final String token = dotenv.env['API_KEY'] ?? "";
 
-      final request = http.MultipartRequest(
-          'POST', Uri.parse('$baseUrl/api/v1/search_by_image'));
-      request.headers['Authorization'] = 'Bearer $token';
-      request.files
-          .add(await http.MultipartFile.fromPath('file', widget.imageFile.path));
+      http.StreamedResponse response;
 
-      final response = await request.send();
+      if (widget.textQuery != null) {
+        final request = http.Request('POST', Uri.parse('$baseUrl/api/v1/search_by_text'));
+        request.headers['Authorization'] = 'Bearer $token';
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode({'query': widget.textQuery});
+        response = await request.send();
+      } else if (widget.imageFile != null) {
+        final request = http.MultipartRequest(
+            'POST', Uri.parse('$baseUrl/api/v1/search_by_image'));
+        request.headers['Authorization'] = 'Bearer $token';
+        request.files.add(
+            await http.MultipartFile.fromPath('file', widget.imageFile!.path));
+        response = await request.send();
+      } else {
+        throw Exception("No search input provided.");
+      }
 
       response.stream
           .transform(utf8.decoder)
@@ -79,10 +91,11 @@ class _ProcessingScreenState extends State<ProcessingScreen>
               _error = data['message'];
             } else if (data['type'] == 'result') {
               _results = data['data']['search_items'];
+              final query = data['data']['query'] ?? widget.textQuery ?? '';
               Navigator.pushReplacement(
                 context,
                 _haloPageRoute(
-                  SearchResultsScreen(results: _results!),
+                  SearchResultsScreen(query: query, results: _results!),
                 ),
               );
             }
