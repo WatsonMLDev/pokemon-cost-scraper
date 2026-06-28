@@ -10,7 +10,24 @@ class CardDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final conditions = (cardData['conditions'] as List?) ?? [];
+    final rawConditions = (cardData['conditions'] as List?) ?? [];
+    
+    final conditions = List<dynamic>.from(rawConditions);
+    const conditionOrder = {
+      'NM': 0,
+      'LP': 1,
+      'MP': 2,
+      'HP': 3,
+      'DMG': 4,
+    };
+    
+    conditions.sort((a, b) {
+      final aShort = a['short'] ?? '';
+      final bShort = b['short'] ?? '';
+      final aRank = conditionOrder[aShort] ?? 99;
+      final bRank = conditionOrder[bShort] ?? 99;
+      return aRank.compareTo(bRank);
+    });
 
     return Scaffold(
       backgroundColor: HaloColors.background,
@@ -68,7 +85,7 @@ class CardDetailsScreen extends StatelessWidget {
                     final cond = conditions[index];
                     return _ConditionCard(
                       condition: cond,
-                      isFirst: index == 0,
+                      isFirst: false,
                     );
                   },
                   childCount: conditions.length,
