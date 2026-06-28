@@ -4,6 +4,9 @@
 backend/.env
 flutter_app/.env
 
+# Browser profile (persistent login session for scraper)
+backend/browser_profile/
+
 # Dependencies & Environments
 venv/
 env/
@@ -100,3 +103,5 @@ project.xcworkspace/
 **/ios/Runner/GeneratedPluginRegistrant.*
 **/ios/Flutter/ephemeral/
 **/ios/Pods/
+
+pokescrape.apk

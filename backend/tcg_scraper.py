@@ -1,8 +1,10 @@
 import sys
+import os
 import asyncio
 import re
 import urllib.parse
 import logging
+from pathlib import Path
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -13,13 +15,29 @@ try:
 except ImportError:
     pass
 
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
-GLOBAL_CRAWLER = AsyncWebCrawler()
+# Persistent browser profile — login once, reuse the session for all scrapes
+PROFILE_DIR = str(Path(__file__).resolve().parent / "browser_profile")
+
+browser_config = BrowserConfig(
+    user_data_dir=PROFILE_DIR,
+    use_managed_browser=True,
+    headless=True,
+    browser_type="chromium",
+)
+
+GLOBAL_CRAWLER = AsyncWebCrawler(config=browser_config)
 
 async def init_crawler():
-    logger.info("Initializing global AsyncWebCrawler (Playwright)...")
+    logger.info(f"Initializing AsyncWebCrawler with profile: {PROFILE_DIR}")
     await GLOBAL_CRAWLER.start()
+    logged_in = os.path.exists(os.path.join(PROFILE_DIR, "Default", "Cookies")) or \
+                os.path.exists(os.path.join(PROFILE_DIR, "Cookies"))
+    if logged_in:
+        logger.info("Browser profile found — session cookies will be reused.")
+    else:
+        logger.warning("No browser profile cookies found. Run 'python login_helper.py' to log in.")
     logger.info("Global AsyncWebCrawler ready.")
 
 async def close_crawler():
