@@ -291,7 +291,10 @@ async def scrape_card_data(url_path: str, card_name: str):
         await new Promise(r => setTimeout(r, 300));
 
         const finalRows = table.querySelectorAll('tbody tr').length;
-        resolve('loaded_' + finalRows + '_rows');
+        resolve({
+            status: 'loaded_' + finalRows + '_rows',
+            html: table.outerHTML
+        });
     });
     """
 
@@ -314,11 +317,20 @@ async def scrape_card_data(url_path: str, card_name: str):
         yield {"type": "result", "data": {"name": card_name, "conditions": []}}
         return
 
-    js_result = r.js_execution_result
-    logger.info(f"JS modal result for {card_name}: {js_result}")
+    js_result = r.js_execution_result or {}
+    js_results_array = js_result.get("results", [])
+    js_output = js_results_array[0] if js_results_array else {}
+    
+    logger.info(f"JS modal status for {card_name}: {js_output.get('status', 'unknown')}")
+
+    # Use JS extracted HTML for the modal table if available, else fallback to full page HTML
+    modal_html = js_output.get("html", "")
+    if not modal_html:
+        logger.warning(f"No HTML returned from JS, falling back to full page HTML")
+        modal_html = r.html
 
     # Parse ALL sales from the single page load
-    all_sales_data = parse_sales_snapshot(r.html, "ALL")
+    all_sales_data = parse_sales_snapshot(modal_html, "ALL")
     all_sales = all_sales_data["sales"]
     logger.info(f"Extracted {len(all_sales)} total sales rows from modal for {card_name}")
 

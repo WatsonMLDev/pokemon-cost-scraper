@@ -61,10 +61,12 @@ return new Promise(async (resolve) => {
     await new Promise(r => setTimeout(r, 300));
 
     const finalRows = table.querySelectorAll('tbody tr').length;
-    resolve('loaded_' + finalRows + '_rows');
+    resolve({
+        status: 'loaded_' + finalRows + '_rows',
+        html: table.outerHTML
+    });
 });
 """
-
 
 async def run():
     await init_crawler()
@@ -87,15 +89,27 @@ async def run():
             return
 
         print(f"✅ Crawl succeeded")
-        print(f"   JS result: {r.js_execution_result}")
-        print(f"   HTML length: {len(r.html)} chars")
+        
+        js_res = r.js_execution_result or {}
+        js_results_array = js_res.get("results", [])
+        js_output = js_results_array[0] if js_results_array else {}
+        
+        print(f"   JS status: {js_output.get('status', 'unknown')}")
 
-        # Parse conditions from the page
+        # Use JS extracted HTML for the modal table if available, else fallback to full page HTML
+        modal_html = js_output.get("html", "")
+        if not modal_html:
+            print("   ⚠️ No HTML returned from JS, falling back to full page HTML")
+            modal_html = r.html
+        else:
+            print(f"   HTML from JS: {len(modal_html)} chars")
+
+        # Parse conditions from the full page
         conditions = parse_conditions(r.html)
         print(f"\n📋 Conditions found: {conditions or ['(none — will default to Near Mint)']}")
 
-        # Parse all sales
-        all_data = parse_sales_snapshot(r.html, "ALL")
+        # Parse all sales using the modal HTML
+        all_data = parse_sales_snapshot(modal_html, "ALL")
         sales = all_data["sales"]
         print(f"\n📊 Total sales rows parsed: {len(sales)}")
 
