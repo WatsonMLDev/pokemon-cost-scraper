@@ -129,17 +129,22 @@ async def run():
         
         print(f"Found {len(tables)} element(s) with tag 'table'")
         
-        with open("debug_page.html", "w") as f:
+        import os
+        base_dir = os.path.dirname(__file__)
+        
+        page_path = os.path.join(base_dir, "debug_page.html")
+        with open(page_path, "w") as f:
             f.write(r.html)
-        print("\nSaved full page HTML to debug_page.html")
+        print(f"\nSaved full page HTML to {page_path}")
         
         # Check what the JS sent back for modal HTML
         if len(r.js_execution_result['results']) > 0:
             for item in r.js_execution_result['results'][0]:
                 if item.startswith('Modal HTML preview:'):
-                    with open("debug_modal.html", "w") as f:
+                    modal_path = os.path.join(base_dir, "debug_modal.html")
+                    with open(modal_path, "w") as f:
                         f.write(item[19:])
-                    print("Saved modal HTML to debug_modal.html")
+                    print(f"Saved modal HTML to {modal_path}")
 
     finally:
         await close_crawler()
