@@ -5,6 +5,5 @@ services:
       - "8080:8080"
     volumes:
       - .:/app/backend
-    command: ["python", "-m", "backend.test"]
     env_file:
       - .env

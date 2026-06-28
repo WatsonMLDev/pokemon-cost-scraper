@@ -79,20 +79,22 @@ def parse_sales_snapshot(html: str, cond_name: str) -> dict:
     table = None
     max_rows = -1
     for t in tables:
-        tb = t.find("tbody")
-        if tb:
-            row_count = len(tb.find_all("tr"))
-            if row_count > max_rows:
-                max_rows = row_count
-                table = t
+        rows = t.find_all("tr")
+        if not rows: continue
+        first_row = rows[0]
+        if len(first_row.find_all(["td", "th"])) < 4:
+            continue
+            
+        row_count = len(rows)
+        if row_count > max_rows:
+            max_rows = row_count
+            table = t
 
     if table:
-        tbody = table.find("tbody")
-        if tbody:
-            for tr in tbody.find_all("tr"):
-                cells = tr.find_all("td")
-                if len(cells) >= 4:
-                    date = cells[0].get_text(strip=True)
+        for tr in table.find_all("tr"):
+            cells = tr.find_all(["td", "th"])
+            if len(cells) >= 4:
+                date = cells[0].get_text(strip=True)
                     for cls in ["latest-sales-table__tbody__condition__custom-listing",
                                 "tcg-base-overlay", "tcg-tooltip__content"]:
                         el = cells[1].find(class_=cls)
