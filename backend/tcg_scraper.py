@@ -75,7 +75,17 @@ def parse_sales_snapshot(html: str, cond_name: str) -> dict:
     elif "DAMAGED" in cond_upper: cond_short = "DMG"
 
     sales = []
-    table = soup.find(class_="latest-sales-table")
+    tables = soup.find_all(class_="latest-sales-table")
+    table = None
+    max_rows = -1
+    for t in tables:
+        tb = t.find("tbody")
+        if tb:
+            row_count = len(tb.find_all("tr"))
+            if row_count > max_rows:
+                max_rows = row_count
+                table = t
+
     if table:
         tbody = table.find("tbody")
         if tbody:
@@ -278,9 +288,13 @@ async def scrape_card_data(url_path: str, card_name: str):
             // 4. Wait for row count to stabilize (two consecutive equal counts)
             let prevCount = -1;
             for (let i = 0; i < 15; i++) {
-                const rows = document.querySelectorAll('.latest-sales-table tbody tr');
-                if (rows.length > 0 && rows.length === prevCount) break;
-                prevCount = rows.length;
+                let maxRows = 0;
+                document.querySelectorAll('.latest-sales-table').forEach(t => {
+                    const rows = t.querySelectorAll('tbody tr');
+                    if (rows.length > maxRows) maxRows = rows.length;
+                });
+                if (maxRows > 5 && maxRows === prevCount) break;
+                prevCount = maxRows;
                 await new Promise(r => setTimeout(r, 300));
             }
         }
