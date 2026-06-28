@@ -55,55 +55,59 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               fontWeight: FontWeight.w600,
             )),
       ),
-      body: widget.results.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off,
-                      size: 64,
-                      color: HaloColors.textDim.withValues(alpha: 0.5)),
-                  const SizedBox(height: 16),
-                  Text('No results found.',
-                      style: Theme.of(context).textTheme.bodyMedium),
-                ],
+      body: Column(
+        children: [
+          // ── Edit Search Bar ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Refine search...',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                filled: true,
+                fillColor: HaloColors.card.withValues(alpha: 0.6),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: HaloColors.primary),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.search, color: HaloColors.primary),
+                  onPressed: () => _submitSearch(_searchController.text),
+                ),
+              ),
+              onSubmitted: _submitSearch,
+            ),
+          ),
+          if (widget.results.isEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.search_off,
+                        size: 64,
+                        color: HaloColors.textDim.withValues(alpha: 0.5)),
+                    const SizedBox(height: 16),
+                    Text('No results for "${widget.query}".',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             )
-          : Column(
-              children: [
-                // ── Edit Search Bar ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Refine search...',
-                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-                      filled: true,
-                      fillColor: HaloColors.card.withValues(alpha: 0.6),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: HaloColors.primary.withValues(alpha: 0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: HaloColors.primary),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.search, color: HaloColors.primary),
-                        onPressed: () => _submitSearch(_searchController.text),
-                      ),
-                    ),
-                    onSubmitted: _submitSearch,
-                  ),
-                ),
-                
+          else ...[
                 // ── Result count badge ──
                 Padding(
                   padding:

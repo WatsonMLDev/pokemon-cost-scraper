@@ -144,16 +144,31 @@ async def search_cards(query: str) -> list[dict]:
     search_url = f"https://www.tcgplayer.com/search/all/product?q={encoded_name}&view=grid"
     logger.info(f"Starting TCGPlayer search crawl for query: '{query}'")
 
-    res = await GLOBAL_CRAWLER.arun(
-        url=search_url,
-        config=CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            wait_for="css:a[href*='/product/']",
-            delay_before_return_html=0.5,
-        ),
-    )
-    if not res.success:
-        logger.error(f"Search crawl failed for query: '{query}'")
+    JS_WAIT_RESULTS = """
+    return new Promise(async (resolve) => {
+        for (let i = 0; i < 100; i++) {
+            if (document.querySelectorAll("a[href*='/product/']").length > 0) break;
+            if (document.body.innerText.includes("No results for")) break;
+            await new Promise(r => setTimeout(r, 200));
+        }
+        resolve();
+    });
+    """
+
+    try:
+        res = await GLOBAL_CRAWLER.arun(
+            url=search_url,
+            config=CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                js_code=[JS_WAIT_RESULTS],
+                delay_before_return_html=0.5,
+            ),
+        )
+        if not res.success:
+            logger.error(f"Search crawl failed for query: '{query}'")
+            return []
+    except Exception as e:
+        logger.warning(f"Search crawl timed out or failed (likely no results) for '{query}': {e}")
         return []
 
     logger.info(f"Search crawl successful for query: '{query}'. Parsing results...")
