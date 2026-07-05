@@ -24,6 +24,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 from backend.llm import extract_card_info
 from backend.tcg_scraper import search_cards, scrape_card_data, init_crawler, close_crawler
+from backend.tcgdb import identify_card_tcgdb
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,11 +52,18 @@ async def search_by_image(file: UploadFile = File(...), token: str = Depends(ver
             with open(temp_file.name, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
                 
-            # 1. Identify card query from image
-            logger.info("Extracting card info using LLM...")
-            yield json.dumps({"type": "status", "message": "Parsing details (LLM)..."}) + "\n"
+            # 1. Identify card query from image using TCGdb first
+            logger.info("Extracting card info using TCGdb...")
+            yield json.dumps({"type": "status", "message": "Parsing details (TCGdb)..."}) + "\n"
             
-            query = await asyncio.to_thread(extract_card_info, temp_file.name)
+            query = await identify_card_tcgdb(temp_file.name)
+            
+            # Fallback to LLM if TCGdb fails or rate limits
+            if not query:
+                logger.info("TCGdb failed or hit limit. Extracting card info using LLM...")
+                yield json.dumps({"type": "status", "message": "Parsing details (LLM)..."}) + "\n"
+                query = await asyncio.to_thread(extract_card_info, temp_file.name)
+                
             if not query:
                 logger.error("Failed to extract search query from image")
                 yield json.dumps({"type": "error", "message": "Could not extract search query from image"}) + "\n"

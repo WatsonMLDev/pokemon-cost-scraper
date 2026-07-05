@@ -144,7 +144,15 @@ def parse_search_results(html: str, card_name: str) -> list[dict]:
                 # e.g. "RC9/RC32" → match if either side of the slash appears
                 alts = "|".join(re.escape(part) for part in w.split("/") if part)
                 return f"(?=.*(?:{alts}))"
-            return f"(?=.*{re.escape(w)})"
+            
+            # Split by non-alphanumeric and join with optional spacing/punctuation
+            parts = re.split(r'[\W_]+', w)
+            parts = [re.escape(p) for p in parts if p]
+            if not parts:
+                return f"(?=.*{re.escape(w)})"
+            
+            escaped = r'[\W_]*'.join(parts)
+            return f"(?=.*{escaped})"
         pattern = "".join(token_pattern(w) for w in card_name.split())
         if not re.search(pattern, combined, re.IGNORECASE):
             continue
