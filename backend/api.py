@@ -42,7 +42,7 @@ class SearchTextRequest(BaseModel):
     query: str
 
 @app.post("/api/v1/search_by_image")
-async def search_by_image(file: UploadFile = File(...), token: str = Depends(verify_token)):
+async def search_by_image(file: UploadFile = File(...), use_tcgdb: bool = True, token: str = Depends(verify_token)):
     async def event_stream():
         logger.info(f"Received image for search: {file.filename}")
         yield json.dumps({"type": "status", "message": "Receiving image..."}) + "\n"
@@ -52,15 +52,19 @@ async def search_by_image(file: UploadFile = File(...), token: str = Depends(ver
             with open(temp_file.name, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
                 
-            # 1. Identify card query from image using TCGdb first
-            logger.info("Extracting card info using TCGdb...")
-            yield json.dumps({"type": "status", "message": "Parsing details (TCGdb)..."}) + "\n"
+            query = None
+            if use_tcgdb:
+                # 1. Identify card query from image using TCGdb first
+                logger.info("Extracting card info using TCGdb...")
+                yield json.dumps({"type": "status", "message": "Parsing details (TCGdb)..."}) + "\n"
+                
+                query = await identify_card_tcgdb(temp_file.name)
+            else:
+                logger.info("Skipping TCGdb as requested.")
             
-            query = await identify_card_tcgdb(temp_file.name)
-            
-            # Fallback to LLM if TCGdb fails or rate limits
+            # Fallback to LLM if TCGdb fails or rate limits (or if skipped)
             if not query:
-                logger.info("TCGdb failed or hit limit. Extracting card info using LLM...")
+                logger.info("Extracting card info using LLM (TCGdb skipped or failed)...")
                 yield json.dumps({"type": "status", "message": "Parsing details (LLM)..."}) + "\n"
                 query = await asyncio.to_thread(extract_card_info, temp_file.name)
                 

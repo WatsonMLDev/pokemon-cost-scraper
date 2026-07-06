@@ -26,11 +26,22 @@ A full-stack application that allows you to point a camera at a Pokémon card, i
     GEMINI_API_KEY=your_gemini_api_key
     GEMINI_API_KEY_PAID=your_paid_gemini_api_key_if_applicable
     API_KEY=your_secure_backend_authentication_token
+    tcgdb_api=your_tcgdb_api_key  # Optional: for faster/more accurate card identification
     ```
-4.  Run the API server:
+4.  **(Optional) Setup TCGPlayer Browser Login:** To avoid CAPTCHAs and rate limits when scraping, you can save your TCGPlayer login session.
+    *   Run `python login_helper.py` in the `backend` directory.
+    *   A visible browser window will open. Log into your TCGPlayer account manually.
+    *   Once logged in, press ENTER in the terminal to save your session cookies.
+    *   *If you do not want to log in, simply skip this step. The scraper will run as a guest, which works fine but may be subject to stricter rate limits or bot checks.*
+5.  Run the API server:
     ```bash
     uvicorn backend.api:app --host 0.0.0.0 --port 8000 --reload
     ```
+
+### API Behavior: TCGdb vs LLM
+The `/api/v1/search_by_image` endpoint accepts a `use_tcgdb` query parameter (defaults to `true`).
+- By default, it calls the TCGdb API first for accurate identification. If that fails or hits a rate limit, it seamlessly falls back to using the Gemini LLM.
+- To skip TCGdb entirely and force the LLM extraction (e.g., if the TCGdb API is unavailable or unwanted), call the endpoint with `?use_tcgdb=false`.
 
 ## Frontend Setup
 
