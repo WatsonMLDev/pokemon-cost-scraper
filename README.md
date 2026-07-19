@@ -66,3 +66,8 @@ The `/api/v1/search_by_image` endpoint accepts a `use_tcgdb` query parameter (de
 *   **AI Vision:** Uses Gemini 3.1 Flash Lite to extract card name, sets, and mechanical details without hallucinating.
 *   **Web Scraping:** Uses asynchronous Playwright to fetch accurate, real-time sales data from TCGplayer.
 *   **Secured APIs:** Communicates using a Bearer token across the frontend and backend.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
