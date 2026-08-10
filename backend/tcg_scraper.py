@@ -32,6 +32,20 @@ GLOBAL_CRAWLER = AsyncWebCrawler(config=browser_config)
 
 async def init_crawler():
     logger.info(f"Initializing AsyncWebCrawler with profile: {PROFILE_DIR}")
+    
+    # Clear any left-over Chromium locks from previous unclean shutdowns
+    for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+        lock_path = Path(PROFILE_DIR) / lock_name
+        if lock_path.exists():
+            try:
+                if lock_path.is_symlink():
+                    lock_path.unlink()
+                else:
+                    lock_path.unlink()
+                logger.info(f"Cleared left-over browser profile lock: {lock_name}")
+            except Exception as e:
+                logger.error(f"Failed to clear browser lock {lock_name}: {e}")
+                
     await GLOBAL_CRAWLER.start()
     logged_in = os.path.exists(os.path.join(PROFILE_DIR, "Default", "Cookies")) or \
                 os.path.exists(os.path.join(PROFILE_DIR, "Cookies"))
