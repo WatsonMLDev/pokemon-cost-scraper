@@ -254,7 +254,7 @@ async def scrape_card_data(url_path: str, card_name: str):
         
     yield {"type": "status", "message": f"Found {len(conditions)} conditions..."}
 
-    # ── Single-pass: open modal once, load all sales, filter per-condition in Python ──
+    # ── Multi-pass: fetch each condition concurrently ──
 
     JS_CLICK_MODAL = """
     return new Promise(async (resolve) => {
@@ -337,46 +337,6 @@ async def scrape_card_data(url_path: str, card_name: str):
     });
     """
 
-    # Do ONE crawl to get all sales data (the modal shows all conditions regardless of URL filter)
-    url = f"{base_url}?Language=English&page=1"
-    logger.info(f"Opening product page + sales modal for {card_name}...")
-    yield {"type": "status", "message": "Opening sales modal..."}
-
-    r = await GLOBAL_CRAWLER.arun(
-        url=url,
-        config=CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            js_code=[JS_CLICK_MODAL],
-            delay_before_return_html=2.0,
-        ),
-    )
-
-    if not r.success:
-        logger.error(f"Failed to load sales modal for {card_name}")
-        yield {"type": "result", "data": {"name": card_name, "conditions": []}}
-        return
-
-    js_result = r.js_execution_result or {}
-    js_results_array = js_result.get("results", [])
-    js_output = js_results_array[0] if js_results_array else {}
-    
-    logger.info(f"JS modal status for {card_name}: {js_output.get('status', 'unknown')}")
-
-    # Use JS extracted HTML for the modal table if available, else fallback to full page HTML
-    modal_html = js_output.get("html", "")
-    if not modal_html:
-        logger.warning(f"No HTML returned from JS, falling back to full page HTML")
-        modal_html = r.html
-
-    # Parse ALL sales from the single page load
-    all_sales_data = parse_sales_snapshot(modal_html, "ALL")
-    all_sales = all_sales_data["sales"]
-    logger.info(f"Extracted {len(all_sales)} total sales rows from modal for {card_name}")
-
-    if not all_sales:
-        logger.warning(f"No sales extracted for {card_name} — modal may not have loaded.")
-
-    # Build condition-to-abbreviation mapping
     COND_MAP = {
         "Near Mint":        "NM",
         "Lightly Played":   "LP",
@@ -385,29 +345,54 @@ async def scrape_card_data(url_path: str, card_name: str):
         "Damaged":          "DMG",
     }
 
-    yield {"type": "status", "message": f"Filtering {len(all_sales)} sales across {len(conditions)} conditions..."}
-
-    condition_results = []
-    for cond_name in conditions:
+    async def fetch_condition(cond_name: str):
         short = COND_MAP.get(cond_name, cond_name)
         cond_upper = cond_name.upper()
+        encoded_cond = urllib.parse.quote(cond_name)
+        url = f"{base_url}?Language=English&Condition={encoded_cond}&page=1"
+        
+        logger.info(f"Opening product page + sales modal for {card_name} ({cond_name})...")
+        r = await GLOBAL_CRAWLER.arun(
+            url=url,
+            config=CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                js_code=[JS_CLICK_MODAL],
+                delay_before_return_html=2.0,
+            ),
+        )
+        if not r.success:
+            logger.error(f"Failed to load sales modal for {card_name} ({cond_name})")
+            return {"short": short, "long": cond_upper, "sales": []}
+            
+        js_result = r.js_execution_result or {}
+        js_results_array = js_result.get("results", [])
+        js_output = js_results_array[0] if js_results_array else {}
+        
+        modal_html = js_output.get("html", "")
+        if not modal_html:
+            logger.warning(f"No HTML returned from JS for {cond_name}, falling back to full page HTML")
+            modal_html = r.html
+            
+        sales_data = parse_sales_snapshot(modal_html, cond_name)
+        sales = sales_data["sales"]
+        
+        # Double-check filter: TCGPlayer's URL filter works, but we enforce it just in case
+        filtered_sales = []
+        for sale in sales:
+            if sale["type"].upper().startswith(short):
+                filtered_sales.append(sale)
+                
+        sales_data["sales"] = filtered_sales
+        logger.info(f"Condition '{cond_name}' ({short}): {len(filtered_sales)} sales extracted")
+        return sales_data
 
-        # Filter sales for this condition — match the abbreviated type column
-        filtered = []
-        for sale in all_sales:
-            sale_type_upper = sale["type"].upper()
-            # Match "NM Holo", "LP Holo", etc. — the type column starts with the abbreviation
-            if sale_type_upper.startswith(short):
-                filtered.append(sale)
-
-        logger.info(f"Condition '{cond_name}' ({short}): {len(filtered)} matching sales out of {len(all_sales)} total")
-        condition_results.append({
-            "short": short,
-            "long": cond_upper,
-            "sales": filtered,
-        })
-
-    logger.info(f"Completed scraping {card_name}: {len(all_sales)} total sales across {len(conditions)} conditions.")
+    yield {"type": "status", "message": f"Fetching sales data for {len(conditions)} conditions concurrently..."}
+    
+    condition_results = await asyncio.gather(*(fetch_condition(c) for c in conditions))
+    
+    total_sales = sum(len(c["sales"]) for c in condition_results)
+    logger.info(f"Completed scraping {card_name}: {total_sales} total sales across {len(conditions)} conditions.")
+    
     yield {
         "type": "result",
         "data": {
