@@ -221,9 +221,9 @@ async def scrape_card_data(url_path: str, card_name: str):
     
     JS_WAIT_CONDITIONS = """
     return new Promise(async (resolve) => {
-        for (let i = 0; i < 25; i++) {
+        for (let i = 0; i < 40; i++) {
             if (document.querySelectorAll('.search-filter__facet').length > 0) break;
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 250));
         }
         resolve();
     });
@@ -237,7 +237,7 @@ async def scrape_card_data(url_path: str, card_name: str):
         config=CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
             js_code=[JS_WAIT_CONDITIONS],
-            delay_before_return_html=0.1,
+            delay_before_return_html=2.0,
         ),
     )
     if not res.success:
