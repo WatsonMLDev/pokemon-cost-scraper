@@ -36,7 +36,7 @@ async def init_crawler():
     # Clear any left-over Chromium locks from previous unclean shutdowns
     for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
         lock_path = Path(PROFILE_DIR) / lock_name
-        if lock_path.exists():
+        if lock_path.exists() or lock_path.is_symlink():
             try:
                 if lock_path.is_symlink():
                     lock_path.unlink()
