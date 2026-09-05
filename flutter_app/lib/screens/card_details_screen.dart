@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../theme.dart';
 
@@ -35,9 +37,22 @@ class CardDetailsScreen extends StatelessWidget {
         slivers: [
           // ── Hero Header ──
           SliverAppBar(
-            expandedHeight: 120,
+            expandedHeight: 180,
             pinned: true,
             backgroundColor: HaloColors.background,
+            actions: [
+              if (cardData['url'] != null && cardData['url'].toString().isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.open_in_browser, color: HaloColors.primary),
+                  tooltip: 'Open in TCGPlayer',
+                  onPressed: () async {
+                    final url = Uri.parse('https://www.tcgplayer.com${cardData['url']}');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -48,21 +63,54 @@ class CardDetailsScreen extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: HaloColors.primary,
                   letterSpacing: 1.2,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      blurRadius: 4,
+                    )
+                  ],
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      HaloColors.primary.withValues(alpha: 0.08),
-                      HaloColors.background,
-                    ],
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (cardData['image_url'] != null && cardData['image_url'].toString().isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: cardData['image_url'],
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(color: HaloColors.background),
+                      errorWidget: (context, url, error) => Container(color: HaloColors.background),
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            HaloColors.primary.withValues(alpha: 0.08),
+                            HaloColors.background,
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Dark gradient overlay to ensure text is readable
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          HaloColors.background.withValues(alpha: 0.8),
+                          HaloColors.background,
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

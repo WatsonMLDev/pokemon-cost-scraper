@@ -63,6 +63,10 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
               _error = data['message'];
             } else if (data['type'] == 'result') {
               _cardData = data['data'];
+              _cardData!['url'] = widget.item['url'];
+              if (widget.item['image_url'] != null) {
+                _cardData!['image_url'] = widget.item['image_url'];
+              }
               Navigator.pushReplacement(
                 context,
                 _haloPageRoute(

@@ -138,7 +138,7 @@ def parse_search_results(html: str, card_name: str) -> list[dict]:
             continue
 
         parent = a.find_parent(class_=lambda x: x and "product-card" in x)
-        title = set_name = rarity_text = ""
+        title = set_name = rarity_text = image_url = ""
         if parent:
             el = parent.find(class_=lambda x: x and "title" in x)
             if el: title = el.get_text(strip=True)
@@ -147,6 +147,9 @@ def parse_search_results(html: str, card_name: str) -> list[dict]:
             # Card number lives in the rarity section (e.g. "Common, #RC8/RC25")
             el = parent.find(class_=lambda x: x and "rarity" in x)
             if el: rarity_text = el.get_text(strip=True)
+            img = parent.find("img")
+            if img and img.get("src"):
+                image_url = img.get("src")
         if not title:
             title = a.get_text(strip=True) or clean.split("/")[-1].replace("-", " ").title()
 
@@ -171,7 +174,7 @@ def parse_search_results(html: str, card_name: str) -> list[dict]:
         if not re.search(pattern, combined, re.IGNORECASE):
             continue
 
-        cards.append({"url": clean, "name": title, "num": set_name})
+        cards.append({"url": clean, "name": title, "num": set_name, "image_url": image_url})
     logger.info(f"Parsed {len(cards)} search results matching '{card_name}'.")
     return cards
 

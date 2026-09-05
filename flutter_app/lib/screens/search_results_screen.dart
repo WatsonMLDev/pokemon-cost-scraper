@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../theme.dart';
 import 'processing_screen.dart';
@@ -257,25 +259,47 @@ class _SearchResultTileState extends State<_SearchResultTile>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                // ── Index number ──
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: HaloColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${widget.index + 1}',
-                      style: GoogleFonts.rajdhani(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: HaloColors.primary,
+                // ── Image or Index ──
+                if (widget.item['image_url'] != null && widget.item['image_url'].toString().isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.item['image_url'],
+                      width: 40,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 40,
+                        height: 56,
+                        color: HaloColors.primary.withValues(alpha: 0.1),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 40,
+                        height: 56,
+                        color: HaloColors.primary.withValues(alpha: 0.1),
+                        child: const Icon(Icons.image_not_supported, size: 20, color: HaloColors.primary),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 40,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: HaloColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${widget.index + 1}',
+                        style: GoogleFonts.rajdhani(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: HaloColors.primary,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(width: 14),
 
                 // ── Left accent bar ──
@@ -327,12 +351,24 @@ class _SearchResultTileState extends State<_SearchResultTile>
                   ),
                 ),
 
-                // ── Arrow ──
-                Icon(
-                  Icons.chevron_right,
-                  color: HaloColors.textDim.withValues(alpha: 0.5),
-                  size: 20,
-                ),
+                // ── Action Buttons ──
+                if (widget.item['url'] != null && widget.item['url'].toString().isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.open_in_browser, color: HaloColors.primary, size: 24),
+                    onPressed: () async {
+                      final url = Uri.parse('https://www.tcgplayer.com${widget.item['url']}');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    tooltip: 'Open in TCGPlayer',
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right,
+                    color: HaloColors.textDim.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
               ],
             ),
           ),
