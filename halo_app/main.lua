@@ -1,7 +1,7 @@
 -- ================================================================
 --  PKMN_VAL_V1.0 - main.lua
 --  Pokemon card valuation HUD for Brilliant Labs Halo
---  256x256 circular display, Lua 5.3
+--  256x256 circular display, Lua 5.4 / 5.3
 --
 --  State machine:
 --    RETICLE --(button_single)--> SEARCH
@@ -16,11 +16,8 @@
 -- ================================================================
 
 -- ----------------------------------------------------------------
--- Font char-width estimates (px per char, used for centering)
--- Calibrated from PIL textbbox measurements
-local CW10 = 6    -- font size 10
-local CW11 = 6    -- font size 11
-local CW12 = 8    -- font size 12
+-- Font char-width estimates (Dogica 8px monospace: 8px per char)
+local CW8 = 8
 
 -- ----------------------------------------------------------------
 -- Palette (0xRRGGBB)
@@ -239,8 +236,9 @@ local function draw_corner_marks(x0, y0, x1, y1, color)
 end
 
 -- Center text horizontally given an estimated pixel width of the string.
--- char_w is the per-character pixel width for the current font.
+-- char_w is the per-character pixel width for the current font (default 8).
 local function draw_centered(txt, y, color, char_w)
+    char_w = char_w or CW8
     local px_w = #txt * char_w
     local x    = 128 - math.floor(px_w / 2)
     frame.display.text(txt, x, y, color)
@@ -255,8 +253,8 @@ local function draw_reticle()
 
     frame.display.circle(128, 128, 118, 0x1A1A1A, false)
 
-    frame.display.set_font(1, 11)
-    draw_centered("PKMN_VAL_V1.0", 26, PRIMARY, CW11)
+    frame.display.set_font(1, 8)
+    draw_centered("PKMN_VAL_V1.0", 26, PRIMARY, CW8)
 
     -- Tactical bracket reticle (120x120 centred at 128,128)
     local cx, cy, sz, arm = 128, 128, 60, 26
@@ -278,8 +276,8 @@ local function draw_reticle()
 
     -- Blinking footer
     if blink_tick % 2 == 0 then
-        frame.display.set_font(1, 11)
-        draw_centered("PRESS [B1] TO SCAN", 218, SECONDARY, CW11)
+        frame.display.set_font(1, 8)
+        draw_centered("PRESS [B1] TO SCAN", 218, SECONDARY, CW8)
     end
 
     frame.display.show()
@@ -296,9 +294,9 @@ local function draw_search()
     local pad = sx0 + 4
 
     -- Header
-    frame.display.set_font(1, 11)
+    frame.display.set_font(1, 8)
     local hdr = "RESULTS [" .. #search_items .. "]"
-    draw_centered(hdr, 30, PRIMARY, CW11)
+    draw_centered(hdr, 30, PRIMARY, CW8)
     draw_dashed(43, sx0, sx1, OUTLINE)
 
     -- List items
@@ -316,20 +314,20 @@ local function draw_search()
             frame.display.rect(sx0, iy0, sx1-sx0, item_h-2, PRIMARY, true)
             draw_corner_marks(sx0, iy0, sx1, iy1, 0x1B1D00)
 
-            frame.display.set_font(1, 14)
-            frame.display.text(">", pad, iy0+3, 0x1B1D00)
+            frame.display.set_font(1, 8)
+            frame.display.text(">", pad, iy0+4, 0x1B1D00)
 
-            frame.display.set_font(1, 13)
-            frame.display.text(item.name, pad+16, iy0+2, 0x1B1D00)
+            frame.display.set_font(1, 8)
+            frame.display.text(item.name, pad+14, iy0+3, 0x1B1D00)
 
-            frame.display.set_font(1, 10)
-            frame.display.text(item.num, pad+16, iy0+17, 0x3A3D00)
+            frame.display.set_font(0, 8)
+            frame.display.text(item.num, pad+14, iy0+17, 0x3A3D00)
         else
-            frame.display.set_font(1, 13)
-            frame.display.text(item.name, pad+20, iy0+2, DIM)
+            frame.display.set_font(1, 8)
+            frame.display.text(item.name, pad+18, iy0+3, DIM)
 
-            frame.display.set_font(1, 10)
-            frame.display.text(item.num, pad+20, iy0+17, OUTLINE)
+            frame.display.set_font(0, 8)
+            frame.display.text(item.num, pad+18, iy0+17, OUTLINE)
         end
 
         if i < #search_items then
@@ -338,20 +336,14 @@ local function draw_search()
     end
 
     -- Footer
-    frame.display.set_font(1, 10)
-    draw_centered("[TAP] NAV  [B1] SELECT", 222, DIM, CW10)
+    frame.display.set_font(0, 8)
+    draw_centered("[TAP] NAV  [B1] SELECT", 222, DIM, CW8)
 
     frame.display.show()
 end
 
 -- ----------------------------------------------------------------
 -- Screen: VALUATION REPORT
---
--- Table layout:
---   DATE   - left anchor  (sx0)
---   TYPE   - left of middle (sx0 + DATE_COL_W)
---   QTY    - right of middle (before price)
---   PRICE  - right-anchored per-row using #price * CW10
 
 local function draw_report()
     frame.display.clear(SURFACE)
@@ -361,8 +353,8 @@ local function draw_report()
 
     -- Guard: no conditions loaded yet
     if #current_card.conditions == 0 then
-        frame.display.set_font(1, 11)
-        draw_centered("NO DATA", 128, DIM, CW11)
+        frame.display.set_font(1, 8)
+        draw_centered("NO DATA", 128, DIM, CW8)
         frame.display.show()
         return
     end
@@ -374,34 +366,32 @@ local function draw_report()
     if #disp_name > 22 then
         disp_name = string.sub(disp_name, 1, 19) .. "..."
     end
-    frame.display.set_font(1, 11)
-    draw_centered(disp_name, 22, PRIMARY, CW11)
+    frame.display.set_font(1, 8)
+    draw_centered(disp_name, 22, PRIMARY, CW8)
 
     -- Condition label: "[LP] LIGHTLY PLAYED"
     local cond_label = "[" .. cond.short .. "] " .. cond.long
-    frame.display.set_font(1, 10)
-    draw_centered(cond_label, 35, SECONDARY, CW10)
+    frame.display.set_font(0, 8)
+    draw_centered(cond_label, 35, SECONDARY, CW8)
     draw_dashed(48, sx0, sx1, OUTLINE)
 
     -- ---- Table column anchors ----
     -- Safe area: sx0=32, sx1=224, total width=192px
-    -- DATE  : left anchor          (x=32)
-    -- TYPE  : after date + gap     (x=82)
-    -- QTY   : fixed center-right   (x=160)
-    -- PRICE : right-anchored      per row: sx1 - #price * CW10
-    local col_date  = sx0           -- 32
-    local col_type  = sx0 + 50     -- 82
-    local col_qty   = sx0 + 128    -- 160
+    -- DATE  : left anchor          (x=26)
+    -- TYPE  : after date + gap     (x=86)
+    -- QTY   : center-right         (x=154)
+    -- PRICE : right-anchored       (starts ~x=176-184)
+    local col_date  = 26
+    local col_type  = 86
+    local col_qty   = 154
 
     -- Column header row
     local hy = 56
-    frame.display.set_font(1, 10)
+    frame.display.set_font(1, 8)
     frame.display.text("DATE",  col_date, hy, DIM)
     frame.display.text("TYPE",  col_type, hy, DIM)
     frame.display.text("QTY",   col_qty,  hy, DIM)
-    -- Right-anchor PRICE header to match data rows
-    -- "$15.90" = 6 chars -> price_x = 224-36=188; PRICE hdr = 224-30=194
-    local price_hdr_x = sx1 - 5*CW10
+    local price_hdr_x = sx1 - 5 * CW8
     frame.display.text("PRICE", price_hdr_x, hy, DIM)
 
     draw_dashed(hy + 11, sx0, sx1, OUTLINE)
@@ -409,11 +399,10 @@ local function draw_report()
     -- Data rows
     local row_y = hy + 15
     for idx, sale in ipairs(cond.sales) do
+        frame.display.set_font(0, 8)
         -- DATE (left anchor)
-        frame.display.set_font(1, 11)
         frame.display.text(sale.date, col_date, row_y, PRIMARY)
 
-        frame.display.set_font(1, 10)
         -- TYPE (left of middle - color coded: Rev Holo=mint, Base=dim, Holo=primary)
         local type_color = PRIMARY
         if sale.type == "Rev Holo" or string.find(sale.type, "Rev") then
@@ -422,10 +411,12 @@ local function draw_report()
             type_color = DIM
         end
         frame.display.text(sale.type, col_type, row_y, type_color)
+
         -- QTY (right of middle, fixed)
         frame.display.text(sale.qty, col_qty, row_y, DIM)
-        -- PRICE: right-anchored - start x = sx1 - width of this price string
-        local price_x = sx1 - #sale.price * CW10
+
+        -- PRICE: right-anchored
+        local price_x = sx1 - #sale.price * CW8
         frame.display.text(sale.price, price_x, row_y, PRIMARY)
 
         -- Row separator (skip after last)
@@ -452,8 +443,8 @@ local function draw_report()
     end
 
     -- Footer
-    frame.display.set_font(1, 10)
-    draw_centered("[TAP] NEXT COND", 228, DIM, CW10)
+    frame.display.set_font(0, 8)
+    draw_centered("[TAP] NEXT COND", 228, DIM, CW8)
 
     frame.display.show()
 end
@@ -461,8 +452,8 @@ end
 local function draw_loading()
     frame.display.clear(SURFACE)
     draw_scanlines()
-    frame.display.set_font(1, 11)
-    draw_centered(loading_text, 120, PRIMARY, CW11)
+    frame.display.set_font(1, 8)
+    draw_centered(loading_text, 120, PRIMARY, CW8)
     frame.display.show()
 end
 
