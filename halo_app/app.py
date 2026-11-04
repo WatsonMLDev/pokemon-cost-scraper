@@ -19,7 +19,8 @@ os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "200,80")
 
 from halo_emulator import HaloEmulator
 
-APP_DIR = "./frontend"
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(APP_DIR)
 API_BASE = "http://127.0.0.1:8000"
 
 MSG_CARD_DATA    = 0x01
@@ -29,12 +30,58 @@ MSG_STATUS       = 0x05
 # Global state to keep track of the current search results
 last_search_results = []
 
+
+def extract_sale_variant(raw_type: str, cond_short: str = "", cond_long: str = "") -> str:
+    """Normalize and clean sales type variant for the compact HUD display."""
+    if not raw_type:
+        return "Base"
+    t = str(raw_type).strip()
+
+    # Remove condition prefix if present (e.g. "Near Mint Rev Holo" -> "Rev Holo")
+    lower = t.lower()
+    prefixes = [
+        cond_long.lower(),
+        cond_short.lower(),
+        "near mint",
+        "lightly played",
+        "moderately played",
+        "heavily played",
+        "damaged",
+        "nm",
+        "lp",
+        "mp",
+        "hp",
+        "dmg",
+    ]
+    for prefix in prefixes:
+        if prefix and lower.startswith(prefix):
+            t = t[len(prefix):].strip()
+            break
+
+    t = t.lstrip("-/:. ").strip()
+    if not t:
+        return "Base"
+
+    lower_rem = t.lower()
+    if "rev" in lower_rem or "reverse" in lower_rem:
+        return "Rev Holo"
+    elif "holo" in lower_rem:
+        return "Holo"
+    elif lower_rem in ("base", "normal"):
+        return "Base"
+
+    return t[:10]  # Fit nicely in the circular display column
+
+
 def pack_card_data(data: dict) -> bytes:
     lines = [data["name"]]
     for cond in data.get("conditions", []):
-        lines.append(f"{cond['short']}|{cond['long']}")
+        cond_short = cond.get("short", "")
+        cond_long = cond.get("long", "")
+        lines.append(f"{cond_short}|{cond_long}")
         for sale in cond.get("sales", []):
-            lines.append(f"{sale['date']}|{sale['type']}|{sale['qty']}|{sale['price']}")
+            clean_type = extract_sale_variant(sale.get("type", ""), cond_short, cond_long)
+            lines.append(f"{sale['date']}|{clean_type}|{sale['qty']}|{sale['price']}")
         lines.append("---")
     payload = "\n".join(lines)
     return bytes([MSG_CARD_DATA]) + payload.encode("ascii", errors="replace")
@@ -55,15 +102,18 @@ def send_status(emulator, status_text: str):
     payload = bytes([MSG_STATUS]) + status_text.encode("ascii", errors="replace")
     emulator.inject_bluetooth_data(payload)
 
+
 def fetch_search_results(emulator):
     """
     Called when user double-taps to scan. In a real app, this would capture
     the camera image. Here we just upload a test image.
     """
-    test_img_path = "PXL_20260624_015031568.jpg"
-    
+    test_img_path = os.path.join(ROOT_DIR, "PXL_20260624_015031568.jpg")
+    if not os.path.exists(test_img_path):
+        test_img_path = "PXL_20260624_015031568.jpg"
+
     send_status(emulator, "Connecting to server...")
-    
+
     try:
         with httpx.Client(timeout=30.0) as client:
             with open(test_img_path, "rb") as f:
@@ -79,10 +129,10 @@ def fetch_search_results(emulator):
                         elif chunk.get("type") == "result":
                             results = chunk["data"]["search_items"]
                             logger.info(f"Found {len(results)} items.")
-                            
+
                             global last_search_results
                             last_search_results = results
-                            
+
                             if len(results) > 0:
                                 payload = pack_search_items(results)
                                 emulator.inject_bluetooth_data(payload)
@@ -130,7 +180,7 @@ def fetch_card_data(idx: int, emulator):
                     elif chunk.get("type") == "error":
                         logger.error(f"Backend error: {chunk['message']}")
                         send_status(emulator, "Error: " + chunk["message"][:20])
-                        
+
     except Exception as e:
         logger.error(f"Failed to fetch card data: {e}")
         send_status(emulator, "Connection failed.")

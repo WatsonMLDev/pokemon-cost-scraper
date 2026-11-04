@@ -414,8 +414,14 @@ local function draw_report()
         frame.display.text(sale.date, col_date, row_y, PRIMARY)
 
         frame.display.set_font(1, 10)
-        -- TYPE (left of middle)
-        frame.display.text(sale.type, col_type, row_y, PRIMARY)
+        -- TYPE (left of middle - color coded: Rev Holo=mint, Base=dim, Holo=primary)
+        local type_color = PRIMARY
+        if sale.type == "Rev Holo" or string.find(sale.type, "Rev") then
+            type_color = SECONDARY
+        elseif sale.type == "Base" then
+            type_color = DIM
+        end
+        frame.display.text(sale.type, col_type, row_y, type_color)
         -- QTY (right of middle, fixed)
         frame.display.text(sale.qty, col_qty, row_y, DIM)
         -- PRICE: right-anchored - start x = sx1 - width of this price string
