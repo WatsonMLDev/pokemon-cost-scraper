@@ -11,6 +11,7 @@ import logging
 import httpx
 import json
 from typing import Any
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] frontend: %(message)s")
 logger = logging.getLogger(__name__)
@@ -21,7 +22,13 @@ from halo_emulator import HaloEmulator
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(APP_DIR)
-API_BASE = "http://127.0.0.1:8000"
+
+# Load environment configuration (supporting halo_app/.env or workspace .env)
+load_dotenv(os.path.join(APP_DIR, ".env"))
+load_dotenv(os.path.join(ROOT_DIR, ".env"))
+
+API_BASE = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+API_KEY = os.environ.get("API_KEY", "")
 
 MSG_CARD_DATA    = 0x01
 MSG_SEARCH_ITEMS = 0x02
@@ -29,6 +36,13 @@ MSG_STATUS       = 0x05
 
 # Global state to keep track of the current search results
 last_search_results = []
+
+
+def get_auth_headers() -> dict[str, str]:
+    headers = {}
+    if API_KEY:
+        headers["Authorization"] = f"Bearer {API_KEY}"
+    return headers
 
 
 def extract_sale_variant(raw_type: str, cond_short: str = "", cond_long: str = "") -> str:
@@ -114,12 +128,17 @@ def fetch_search_results(emulator):
 
     send_status(emulator, "Connecting to server...")
 
+    headers = get_auth_headers()
     try:
         with httpx.Client(timeout=30.0) as client:
             with open(test_img_path, "rb") as f:
-                logger.info(f"Uploading {test_img_path} to backend...")
+                logger.info(f"Uploading {test_img_path} to backend ({API_BASE})...")
                 files = {"file": ("scan.jpg", f, "image/jpeg")}
-                with client.stream("POST", API_BASE + "/api/v1/search_by_image", files=files) as response:
+                with client.stream("POST", f"{API_BASE}/api/v1/search_by_image", files=files, headers=headers) as response:
+                    if response.status_code == 401:
+                        logger.error("Authentication failed: invalid API_KEY")
+                        send_status(emulator, "Auth failed (401)")
+                        return
                     response.raise_for_status()
                     for line in response.iter_lines():
                         if not line: continue
@@ -143,6 +162,12 @@ def fetch_search_results(emulator):
                             logger.error(f"Backend error: {chunk['message']}")
                             send_status(emulator, "Error: " + chunk["message"][:20])
 
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error: {e}")
+        if e.response.status_code == 401:
+            send_status(emulator, "Auth failed (401)")
+        else:
+            send_status(emulator, f"HTTP err: {e.response.status_code}")
     except Exception as e:
         logger.error(f"Failed to fetch search results: {e}")
         send_status(emulator, "Connection failed.")
@@ -162,10 +187,17 @@ def fetch_card_data(idx: int, emulator):
     logger.info(f"Scraping data for {item['name']}...")
     send_status(emulator, "Connecting to server...")
 
+    headers = get_auth_headers()
+    headers["Content-Type"] = "application/json"
+
     try:
         with httpx.Client(timeout=60.0) as client:
             req_data = {"url": item["url"], "name": item["name"]}
-            with client.stream("POST", API_BASE + "/api/v1/scrape_card", json=req_data) as response:
+            with client.stream("POST", f"{API_BASE}/api/v1/scrape_card", json=req_data, headers=headers) as response:
+                if response.status_code == 401:
+                    logger.error("Authentication failed: invalid API_KEY")
+                    send_status(emulator, "Auth failed (401)")
+                    return
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if not line: continue
@@ -181,6 +213,12 @@ def fetch_card_data(idx: int, emulator):
                         logger.error(f"Backend error: {chunk['message']}")
                         send_status(emulator, "Error: " + chunk["message"][:20])
 
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error: {e}")
+        if e.response.status_code == 401:
+            send_status(emulator, "Auth failed (401)")
+        else:
+            send_status(emulator, f"HTTP err: {e.response.status_code}")
     except Exception as e:
         logger.error(f"Failed to fetch card data: {e}")
         send_status(emulator, "Connection failed.")
