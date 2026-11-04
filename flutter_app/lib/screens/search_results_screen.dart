@@ -357,9 +357,7 @@ class _SearchResultTileState extends State<_SearchResultTile>
                     icon: const Icon(Icons.open_in_browser, color: HaloColors.primary, size: 24),
                     onPressed: () async {
                       final url = Uri.parse('https://www.tcgplayer.com${widget.item['url']}');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      }
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
                     },
                     tooltip: 'Open in TCGPlayer',
                   )

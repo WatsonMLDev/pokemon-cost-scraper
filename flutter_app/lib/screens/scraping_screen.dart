@@ -64,6 +64,9 @@ class _ScrapingScreenState extends State<ScrapingScreen> {
             } else if (data['type'] == 'result') {
               _cardData = data['data'];
               _cardData!['url'] = widget.item['url'];
+              if (widget.item['num'] != null) {
+                _cardData!['num'] = widget.item['num'];
+              }
               if (widget.item['image_url'] != null) {
                 _cardData!['image_url'] = widget.item['image_url'];
               }
